@@ -1,0 +1,4 @@
+package wot
+
+class TDD {
+}
