@@ -4,3 +4,16 @@ out/
 gradle/
 .idea/
 build
+
+tdb-data
+json-data.db
+validation/*.ttl
+
+
+./src/drafts/
+
+kt_app/data/validation/td.ttl
+kt_app/data/validation/tdv11.jsonld
+kt_app/data/validation/td.jsonld
+kt_app/data/validation/README.md
+
