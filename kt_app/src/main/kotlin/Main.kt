@@ -55,10 +55,13 @@ fun main(args: Array<String>) {
     println("Program arguments: ${args.joinToString()}")
 
     val rdf_db: Dataset = TDBFactory.createDataset("data/tdb-data")
+    val json_db = null
+    /*
     val json_db: DB = DBMaker
         .fileDB("data/json-data.db")
         .transactionEnable()
         .make()
+     */
 
     val model: Model = ModelFactory.createDefaultModel()
     model.read("data/tdb-data/turtle.ttl")

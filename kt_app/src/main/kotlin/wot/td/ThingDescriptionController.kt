@@ -14,10 +14,11 @@ import org.apache.jena.shared.NotFoundException
 import org.mapdb.DB
 import utils.Utils
 
-class ThingDescriptionController(dbRdf: Dataset, dbJson: DB) {
+class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
 
     val ts = ThingDescriptionService(dbRdf, dbJson)
     private var utils: Utils = Utils()
+
     suspend fun retrieveAllThings(call: ApplicationCall) {
         val request = call.request
 
@@ -143,55 +144,71 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB) {
             val request = call.request
 
             if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
-                throw ThingException("Unsupporteed content type.")
+                throw ThingException("Unsupported content type.")
             }
 
-            if (utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
-                val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
-
-                val requestBodyId: String? = thing.get("@id")?.takeIf { it.isTextual }?.asText()
-                    ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
-
-                if (requestBodyId == null || requestBodyId != id) {
-                    println("id diversi")
-                    throw BadRequestException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
-                }
-
-                if (!thing.has("title")) {
-                    throw BadRequestException("The thing must have a 'title' property.")
-                }
-
-                val thingId = ts.updateThing(thing)
-                call.response.header(HttpHeaders.Location, thingId)
-            } else {
+            if (!utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
                 throw ThingException("ContentType not supported. application/td+json required.")
             }
+
+            val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
+
+            val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
+                ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
+
+            if (requestBodyId == null || requestBodyId != id) {
+                throw BadRequestException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
+            }
+
+            if (!thing.has("title")) {
+                throw BadRequestException("The thing must have a 'title' property.")
+            }
+
+            val thingId = ts.updateThing(thing)
+            call.response.header(HttpHeaders.Location, thingId)
+
             call.respond(HttpStatusCode.Created, "Thing updated successfully")
         } catch (e: ThingException) {
             call.respond(HttpStatusCode.BadRequest, "${e.message}")
         } catch (e: BadRequestException) {
-            println("qui")
             call.respond(HttpStatusCode.BadRequest, "${e.message}")
         } catch (e: NotFoundException) {
             call.respond(HttpStatusCode.NotFound, "${e.message}")
         } catch (e: Exception) {
             call.respond(HttpStatusCode.InternalServerError, "${e.message}")
-            println("error update: ${e.localizedMessage}")
+            println("Error during Thing Update: ${e.localizedMessage}")
         }
     }
 
     suspend fun patchThing(call: ApplicationCall) {
-        val id = call.parameters["id"] ?: throw ThingException("Missing thing ID")
-
         try {
-            val request = call.receive<ObjectNode>()
-            val existingThing = ts.retrieveThingById(id) ?: throw ThingException("Thing not found")
+            val id = utils.hasValidId(call.parameters["id"])
+            val request = call.request
 
-            request.fields().forEach { (key, value) ->
-                existingThing.set<ObjectNode>(key, value)
+            if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
+                throw ThingException("Unsupported content type.")
             }
 
-            ts.updateThing(existingThing)
+            if (!utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
+                throw ThingException("ContentType not supported. application/td+json required.")
+            }
+
+            val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
+
+            val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
+                ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
+
+            if (requestBodyId == null || requestBodyId != id) {
+                throw BadRequestException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
+            }
+
+            if (!thing.has("title")) {
+                throw BadRequestException("The thing must have a 'title' property.")
+            }
+
+            val thingId = ts.patchThing(thing)
+            call.response.header(HttpHeaders.Location, thingId)
+
             call.respond(HttpStatusCode.Created, "Thing patched successfully")
         } catch (e: ThingException) {
             call.respond(HttpStatusCode.BadRequest, "${e.message}")
@@ -201,6 +218,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB) {
             call.respond(HttpStatusCode.NotFound, "${e.message}")
         } catch (e: Exception) {
             call.respond(HttpStatusCode.InternalServerError, "${e.message}")
+            println("Error during Thing Patch: ${e.localizedMessage}")
         }
     }
 

@@ -12,18 +12,18 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
         route.route("/things") {
 
             get(""){
-                //tc.retrieveAllThings(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                tc.retrieveAllThings(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
 
             get("/"){
-                //tc.retrieveAllThings(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                tc.retrieveAllThings(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
 
             get("/{id}") {
-                //tc.retrieveThingById(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                tc.retrieveThingById(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
 
             post(""){
@@ -35,17 +35,17 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
             }
 
             put("/{id}") {
-                //tc.updateThing(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                tc.updateThing(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
 
             patch("/{id}") {
-                //tc.patchThing(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                tc.patchThing(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
 
             delete("/{id}") {
-                //tc.deleteThing(call)
+                tc.deleteThing(call)
                 call.respond(HttpStatusCode.NotImplemented)
             }
         }

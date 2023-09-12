@@ -9,6 +9,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import exceptions.ThingException
 import io.ktor.http.*
+import org.apache.jena.query.Dataset
 import org.apache.jena.rdf.model.Model
 import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
@@ -37,17 +38,41 @@ class Utils {
                 val model = ModelFactory.createDefaultModel()
                 RDFDataMgr.read(model, inputStream, lang)
 
-                println("Model loaded successfully\n${model.toString()}")
+                //println("Model loaded successfully\n${model.toString()}")
                 return model
             } else {
                 throw ThingException("Resource content is null for path: $filePath")
             }
         } catch (e: Exception) {
             println("\n\nException: $e. path: $filePath")
-            throw ThingException("Cannot load model: ${e.message}")
+            throw ThingException("Cannot load model: ${e.message} path: $filePath")
         }
     }
 
+    fun loadRDFDatasetIntoModelList(dataset: Dataset): ArrayList<Model> {
+        val modelList = ArrayList<Model>()
+
+        dataset.listNames().forEach { graphName ->
+            val model = dataset.getNamedModel(graphName)
+            modelList.add(model)
+        }
+
+        return modelList
+    }
+
+    fun hasThingType(thing: ObjectNode): Boolean {
+        var type = thing["@type"]
+
+        if (type is JsonNode) {
+            val typeValue = type.asText()
+            return typeValue == "Thing" || typeValue == "https://www.w3.org/2019/wot/td#Thing"
+        } else if (type is ArrayNode) {
+            val uniqueTypes = type.map { it.asText() }.toSet()
+            return uniqueTypes.any { it == "Thing" || it == "https://www.w3.org/2019/wot/td#Thing" }
+        }
+
+        return false
+    }
 
     fun strconcat(vararg values: String): String {
         return values.joinToString("")
