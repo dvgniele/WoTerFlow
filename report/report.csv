@@ -1,0 +1,9 @@
+ID,Status,Comment
+tdd-http-head,pass,passed:TestRetrieveThing/HEAD
+tdd-registrationinfo-vocab-created,pass,passed:TestRetrieveThing/registrationInfo_created
+tdd-registrationinfo-vocab-modified,pass,passed:TestRetrieveThing/registrationInfo_modified
+tdd-things-crud,pass,passed:TestRetrieveThing/submit_request
+tdd-things-crudl,pass,passed:TestRetrieveThing/submit_request
+tdd-things-default-representation,pass,passed:TestRetrieveThing/content_type
+tdd-things-retrieve,pass,passed:TestRetrieveThing/submit_request passed:TestRetrieveThing/payload
+tdd-things-retrieve-resp,pass,passed:TestRetrieveThing/status_code passed:TestRetrieveThing/content_type

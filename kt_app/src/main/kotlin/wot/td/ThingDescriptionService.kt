@@ -19,6 +19,7 @@ import org.apache.jena.update.UpdateExecutionFactory
 import org.apache.jena.update.UpdateFactory
 import org.apache.jena.update.UpdateProcessor
 import org.mapdb.DB
+import utils.RDFConverter
 import utils.Utils
 import java.io.StringReader
 import java.io.StringWriter
@@ -31,6 +32,7 @@ import kotlin.collections.ArrayList
 class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
     private val utils: Utils = Utils()
+    private val converter: RDFConverter = RDFConverter()
     private val validator: ThingDescriptionValidation = ThingDescriptionValidation()
 
     private val BASE_URI = "http://example.com/ktwot/"
@@ -64,7 +66,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
         try {
             val ttlList = utils.loadRDFDatasetIntoModelList(rdfDataset)
-            val things = ttlList.map { convertRdfModelToObjectNode(it) }
+            val things = ttlList.map { converter.convertRdfModelToObjectNode(it) }
 
             //  Clear the things map and populate it back with the updated dataset
             thingsMap.clear()
@@ -103,18 +105,18 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             // Checking the jsonld version and upgrading if needed
             val tdVersion11p = utils.isJsonLd11OrGreater(td)
 
-            val tdV11 = if (!tdVersion11p) convertJsonLd10ToJsonLd11(td) else td
+            val tdV11 = if (!tdVersion11p) converter.convertJsonLd10ToJsonLd11(td) else td
             //val tdV11 = td
 
             // JsonLd decoration with missing fields
             decorateThingDescription(tdV11)
 
 
-            val jsonRdfModel = convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
-            val jsonRdfModelString = convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
+            val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+            val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
 
-            val thingTurtleString = convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
-            val turtleModel = convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
+            val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
+            val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
 
             //println("ttl model:\n$turtleModel")
 
@@ -182,15 +184,15 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             val graphId = utils.strconcat(GRAPH_PREFIX, id)
 
             val tdVersion11p = utils.isJsonLd11OrGreater(td)
-            val tdV11 = if (!tdVersion11p) convertJsonLd10ToJsonLd11(td) else td
+            val tdV11 = if (!tdVersion11p) converter.convertJsonLd10ToJsonLd11(td) else td
 
             decorateThingDescription(tdV11)
 
-            val jsonRdfModel = convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
-            val jsonRdfModelString = convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
+            val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+            //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
 
-            val thingTurtleString = convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
-            val tutleModel = convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
+            val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
+            val tutleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
 
 
             //  Performing Semantic Validation
@@ -248,6 +250,86 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         }
     }
 
+    fun patchThing(td: ObjectNode): String {
+        val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
+            ?: td.get("id")?.takeIf { it.isTextual }?.asText()
+            ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
+
+        rdfDataset.begin(ReadWrite.WRITE)
+
+        var query = ""
+
+        try {
+            val thing = retrieveThingById(id)
+            val graphId = utils.strconcat(GRAPH_PREFIX, td.get("@id").asText())
+
+            if (thing != null) {
+                thing.setAll<ObjectNode>(td)
+
+                val jsonRdfModel = converter.convertJsonLdToRdf(thing.toPrettyString(), Lang.JSONLD11)
+                //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
+
+                val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
+                val tutleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
+
+                //  Performing Semantic Validation
+                val semanticValidation = validator.validateSemantic(jsonRdfModel, jsonLdContextModel)
+                println("Semantic Validation: $semanticValidation")
+
+                if (!semanticValidation)
+                    throw ThingException("Semantic Validation Failed")
+
+                //  Performing Syntactic Validation
+                val syntacticValidation = validator.validateSyntactic(tutleModel, ttlContextModel)
+                println("Syntactic Validation: $syntacticValidation")
+
+                if (!syntacticValidation)
+                    throw ThingException("Syntactic Validation Failed")
+
+                // Query preparation for RDF data storing
+                val rdfTriplesString = thingTurtleString
+                query = """
+                DELETE WHERE {
+                    GRAPH <$graphId> {
+                        ?s ?p ?o
+                    }
+                };
+                INSERT DATA {
+                    GRAPH <$graphId> {
+                        $rdfTriplesString
+                    }
+                }
+            """.trimIndent()
+
+                println("query:\n$query")
+
+                //  Execute query
+                val update = UpdateFactory.create(query)
+                val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
+                updateExecution.execute()
+
+                //  Commit to close db connection
+                rdfDataset.commit()
+
+                refreshJsonDb()
+
+                return id
+            } else {
+                throw ThingException("Thing with id: $graphId does not exists.")
+            }
+        } catch (e: ThingException) {
+            rdfDataset.abort()
+
+            throw ThingException("An error occurred while patching the thing: ${e.message}")
+        } catch (e: Exception) {
+            rdfDataset.abort()
+
+            throw ThingException("Patch Thing Error: ${e.message}")
+        } finally {
+            rdfDataset.end()
+        }
+    }
+
     fun deleteThingById(id: String) {
         rdfDataset.begin(ReadWrite.WRITE)
 
@@ -272,269 +354,30 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         }
     }
 
-
-    //  todo: all patch logic
-    fun patchThing(td: ObjectNode): String {
-        rdfDataset.begin(ReadWrite.READ)
-
+    fun retrieveThingById(id: String): ObjectNode? {
         try {
-            val ttlList = utils.loadRDFDatasetIntoModelList(rdfDataset)
-            val objectNodeList = ttlList.map { convertRdfModelToObjectNode(it) }
-
-            rdfDataset.commit()
-
-            return "oke"
-        } catch (e: Exception) {
-            rdfDataset.abort()
-
-            throw ThingException("An error occurred while Patching the thing: ${e.message}")
-        } finally {
-            rdfDataset.end()
+            return thingsMap[id]
+        } catch (e: Exception){
+            println("${e.message}")
+            throw ThingException("Retrieve Get: ${e.message}")
         }
     }
 
-    fun retrieveThingById(id: String): ObjectNode? {
-        return thingsMap[id]
+    fun checkIfThingExists(id: String): Boolean {
+        try {
+            return thingsMap.containsKey(id)
+        } catch (e: Exception){
+            println("${e.message}")
+            throw ThingException("Retrieve Head: ${e.message}")
+        }
     }
 
     fun retrieveAllThings(): List<ObjectNode> {
-        return thingsMap.values.toList()
-    }
-
-    private fun convertRdfModelToObjectNode(rdfModelString: Model): ObjectNode {
         try {
-            val serializedModel = convertRdfToStringSerialization(rdfModelString, Lang.TURTLE)
-
-            return convertTurtleToJsonLd(serializedModel)
-        } catch (e: Exception) {
-            throw ThingException("Error converting RDF Model String to ObjectNode: ${e.message}")
-        }
-    }
-
-    private fun convertJsonLd10ToJsonLd11(jsonLd10: ObjectNode): ObjectNode {
-        try {
-            val jsonLd11 = ObjectMapper().createObjectNode()
-
-            // Copy the existing fields from JSON-LD 1.0 to JSON-LD 1.1
-            jsonLd10.fieldNames().forEach { fieldName ->
-                val fieldValue: JsonNode? = jsonLd10.get(fieldName)
-                jsonLd11.set<JsonNode>(fieldName, fieldValue)
-            }
-
-            // Add "@version" required field for JSON-LD 1.1
-            jsonLd11.put("@version", "1.1")
-
-            return jsonLd11
-        } catch (e: Exception) {
-            throw Exception("Error converting JSON-LD 1.0 to JSON-LD 1.1: ${e.message}")
-        }
-    }
-
-    private fun convertRdfToString(model: Model, lang: Lang): String {
-        try {
-            val outputStream = ByteArrayOutputStream()
-            RDFDataMgr.write(outputStream, model, lang)
-            return outputStream.toString(StandardCharsets.UTF_8)
-        } catch (e: Exception) {
-            throw Exception("Error converting RDF to string: ${e.message}")
-        }
-    }
-
-    fun convertTurtleToJsonLd(turtleData: String): ObjectNode {
-        try {
-            val model = ModelFactory.createDefaultModel()
-            val rdfDataReader = StringReader(turtleData)
-            RDFDataMgr.read(model, rdfDataReader, null, Lang.TURTLE)
-
-            val jsonLdContext = "https://www.w3.org/2019/wot/td/v1"
-
-            val jsonLdObject = JsonNodeFactory.instance.objectNode()
-            jsonLdObject.put("@context", jsonLdContext)
-
-            //  Create a map to store the subject blocks
-            val subjectBlocks = mutableMapOf<String, ObjectNode>()
-
-            //  Iterate over the statements of the RDF model
-            val stmtIterator = model.listStatements()
-            while (stmtIterator.hasNext()) {
-                val stmt = stmtIterator.nextStatement()
-                val subjectURI = stmt.subject.toString()
-                val predicateURI = stmt.predicate.toString()
-                val objectNode = stmt.`object`
-
-                //  Get or create the subject block
-                val subjectBlock = subjectBlocks.getOrPut(subjectURI) {
-                    JsonNodeFactory.instance.objectNode()
-                }
-
-                //  Add the predicate and object to the subject block
-                addProperty(subjectBlock, predicateURI, objectNode)
-            }
-
-            //  Find the subject with "urn:" and add it as a top-level block with @id
-            val urnSubject = subjectBlocks.keys.find { it.startsWith("urn:") }
-            if (urnSubject != null) {
-                val topLevelBlock = subjectBlocks[urnSubject]
-                topLevelBlock?.put("@id", urnSubject)
-                jsonLdObject.setAll<ObjectNode>(topLevelBlock)
-            }
-
-            return jsonLdObject
-        } catch (e: Exception) {
-            throw Exception("Error converting Turtle to JSON-LD: ${e.message}")
-        }
-    }
-
-
-    fun addProperty(node: ObjectNode, predicateURI: String, objectNode: RDFNode) {
-        val predicateName = predicateURI.substringAfterLast("#")
-
-        if (predicateName.startsWith("@")) {
-            //  Handle predicates starting with "@", e.g., "@type"
-            node.put(predicateName, objectNode.toString())
-        } else {
-            //  Handle other predicates
-            if (objectNode.isLiteral) {
-                // Handle literal values
-                val literalValue = objectNode.asLiteral().string
-                node.put(predicateName, literalValue)
-            } else if (objectNode.isResource) {
-                //  Handle resource values
-                val resourceURI = objectNode.asResource().uri
-
-                //  handle the object if represents a collection
-                if (objectNode.isAnon) {
-
-                    val collectionNode = handleCollection(objectNode.asResource())
-                    if (node.has(predicateName)) {
-
-                        val existingValue = node.get(predicateName)
-                        if (existingValue is ArrayNode) {
-                            existingValue.add(collectionNode)
-                        } else {
-                            val arrayNode = JsonNodeFactory.instance.arrayNode()
-                            arrayNode.add(existingValue)
-                            arrayNode.add(collectionNode)
-                            node.set(predicateName, arrayNode)
-                        }
-                    } else {
-                        node.set(predicateName, collectionNode)
-                    }
-
-                }
-                else {
-                    node.put(utils.strconcat("@", predicateName), resourceURI)
-                }
-            }
-        }
-    }
-
-    fun handleCollection(collection: Resource): ObjectNode {
-        val collectionNode = JsonNodeFactory.instance.objectNode()
-        val iterator = collection.listProperties()
-        while (iterator.hasNext()) {
-            val arrayElement = iterator.next()
-            val predicateName = arrayElement.predicate.toString()
-                .substringAfterLast("/")
-                .substringAfterLast("#")
-            val objectValue = arrayElement.`object`.toString()
-            collectionNode.put(predicateName, objectValue)
-        }
-        return collectionNode
-    }
-
-    private fun convertToTtl(stringModel: String): Model {
-        try {
-            val model = ModelFactory.createDefaultModel()
-
-            val rdfDataReader = StringReader(stringModel)
-            model.read(rdfDataReader, null, Lang.TURTLE.name)
-
-            return model
-        }
-        catch (e: Exception) {
-            throw Exception("Error converting to TURTLE: ${e.message}")
-        }
-    }
-
-    private fun convertJsonLdToRdf(jsonLdString: String, lang: Lang): Model {
-        try {
-            val jsonLdNode = JsonUtils.fromString(jsonLdString)
-
-            val options = JsonLdOptions()
-
-            // Set options to include the @context dynamically if present in the JSON-LD
-            if ((jsonLdNode is Map<*, *>) && jsonLdNode.containsKey("@context")) {
-                val context = jsonLdNode["@context"]
-                if (context is String) {
-                    // Create a HashMap and set the context
-                    val contextMap = HashMap<String, Any>()
-                    contextMap["@context"] = context
-                    options.expandContext = contextMap
-                } else if (context is Map<*, *>) {
-                    options.expandContext = context
-                }
-            }
-
-            val expandedJsonLd = JsonLdProcessor.expand(jsonLdNode, options)
-
-            val model = ModelFactory.createDefaultModel()
-
-            // Convert the expanded JSON-LD to RDF
-            val jsonLdStringReader = StringReader(JsonUtils.toPrettyString(expandedJsonLd))
-            RDFDataMgr.read(model, jsonLdStringReader, null, lang)
-
-            return model
-        } catch (e: Exception) {
-            throw Exception("Error converting JSON-LD to ${lang.name.uppercase()}: ${e.message}")
-        }
-    }
-
-    fun convertRdfStringToRdf(jsonLdString: String, lang: Lang): Model {
-        try {
-            val model = ModelFactory.createDefaultModel()
-
-            RDFDataMgr.read(model, jsonLdString.reader(), null, lang)
-
-            return model
+            return thingsMap.values.toList()
         } catch (e: Exception){
-            throw Exception("Error converting JSON-LD to ${lang.name.uppercase()}: ${e.message}")
-        }
-    }
-
-    fun convertTrigToJsonLd(trigModel: Model): String {
-        try {
-            val writer = StringWriter()
-
-            // Serialize the TRIG model to JSON-LD 1.1 format
-            RDFDataMgr.write(writer, trigModel, Lang.JSONLD11)
-
-            return writer.toString()
-        } catch (e: Exception) {
-            throw ThingException("An error occurred during conversion from TRIG to JSON-LD 1.1: ${e.message}")
-        }
-    }
-
-    fun convertRdfToStringSerialization(model: Model, lang: Lang): String {
-        try {
-            val outputStream = ByteArrayOutputStream()
-
-            RDFDataMgr.write(outputStream, model, lang)
-
-            return  outputStream.toString(StandardCharsets.UTF_8)
-        } catch (e: Exception) {
-            throw Exception("Error converting RDF to String Serialization: ${e.message}")
-        }
-    }
-
-    fun convertJsonLdToJsonObject(jsonLdString: String): ObjectNode {
-        try {
-            val objectMapper = ObjectMapper()
-
-            // Deserialize the JSON-LD string into an ObjectNode
-            return objectMapper.readValue(jsonLdString, ObjectNode::class.java)
-        } catch (e: Exception) {
-            throw ThingException("Error converting JSON-LD to JSON-LD object: ${e.message}")
+            println("${e.message}")
+            throw ThingException("Retrieve All: ${e.message}")
         }
     }
 

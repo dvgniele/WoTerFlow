@@ -3,6 +3,7 @@ package wot.td
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import exceptions.ThingException
+import exceptions.ValidationException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.plugins.*
@@ -35,7 +36,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             throw NotImplemented("Ordering is not supported")
         }
 
-        call.response.header(HttpHeaders.ContentType, "application/ld+json")
+        call.response.header(HttpHeaders.ContentType, "application/td+json")
         call.response.status(HttpStatusCode.OK)
 
         val things = ts.retrieveAllThings()
@@ -80,14 +81,28 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
         try {
             val id = utils.hasValidId(call.parameters["id"])
 
-            if (!utils.hasJsonContent(call.request.header(HttpHeaders.Accept))) {
-                throw ThingException("Unsupported content type")
+            call.response.header(HttpHeaders.ContentType, "application/td+json")
+
+            when (call.request.httpMethod){
+                HttpMethod.Head -> {
+                    val retrievedThing = ts.checkIfThingExists(id)
+                    println("id della cosa: $id")
+
+                    call.respond(if (retrievedThing) HttpStatusCode.OK else HttpStatusCode.NotFound)
+                }
+                HttpMethod.Get -> {
+                    /*
+                    if (!utils.hasJsonContent(call.request.header(HttpHeaders.Accept))) {
+                        throw ThingException("Unsupported content type")
+                    }
+                     */
+
+                    val retrievedThing = ts.retrieveThingById(id)
+
+                    val json = utils.jsonMapper.writeValueAsString(retrievedThing)
+                    call.respondText(json, ContentType.Application.Json, HttpStatusCode.OK)
+                }
             }
-
-            val retrievedThing = ts.retrieveThingById(id)
-
-            val json = utils.jsonMapper.writeValueAsString(retrievedThing)
-            call.respondText(json, ContentType.Application.Json, HttpStatusCode.OK)
         } catch (e: ThingException) {
             call.respond(HttpStatusCode.BadRequest, e.message.toString())
         } catch (e: NotFoundException) {
@@ -95,7 +110,6 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
         } catch (e: Exception) {
             call.respond(HttpStatusCode.InternalServerError, "An error occurred: ${e.message}")
         }
-
     }
 
     suspend fun registerAnonymousThing(call: ApplicationCall) {
@@ -143,6 +157,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             val id = utils.hasValidId(call.parameters["id"])
             val request = call.request
 
+
             if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
                 throw ThingException("Unsupported content type.")
             }
@@ -152,12 +167,13 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             }
 
             val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
+            println("\n\n\n\n TEST TEST\n${thing.toPrettyString()}\n\n")
 
             val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
                 ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
 
             if (requestBodyId == null || requestBodyId != id) {
-                throw BadRequestException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
+                throw ValidationException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
             }
 
             if (!thing.has("title")) {
@@ -169,10 +185,16 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
 
             call.respond(HttpStatusCode.Created, "Thing updated successfully")
         } catch (e: ThingException) {
+            println("thing exception")
+            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+        }  catch (e: ValidationException) {
+            println("validation")
             call.respond(HttpStatusCode.BadRequest, "${e.message}")
         } catch (e: BadRequestException) {
+            println("bad request")
             call.respond(HttpStatusCode.BadRequest, "${e.message}")
         } catch (e: NotFoundException) {
+            println("not found")
             call.respond(HttpStatusCode.NotFound, "${e.message}")
         } catch (e: Exception) {
             call.respond(HttpStatusCode.InternalServerError, "${e.message}")
@@ -194,17 +216,6 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             }
 
             val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
-
-            val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
-                ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
-
-            if (requestBodyId == null || requestBodyId != id) {
-                throw BadRequestException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
-            }
-
-            if (!thing.has("title")) {
-                throw BadRequestException("The thing must have a 'title' property.")
-            }
 
             val thingId = ts.patchThing(thing)
             call.response.header(HttpHeaders.Location, thingId)
@@ -234,27 +245,4 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             call.respond(HttpStatusCode.InternalServerError, "${e.message}")
         }
     }
-
-
-    /*
-    fun initializeDatabaseIfNeeded(){
-        try {
-            ts.initializeDatabaseIfNeeded()
-        } catch (e: Exception){
-            println(e.message)
-        }
-    }
-
-     */
-
-
-    /*
-    suspend fun retrieveAnything(call: ApplicationCall){
-        val request= call.request
-
-        val data = ts.retrieveAnything()
-
-        call.respond(data)
-    }
-     */
 }

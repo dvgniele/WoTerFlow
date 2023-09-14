@@ -26,6 +26,10 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
                 //call.respond(HttpStatusCode.NotImplemented)
             }
 
+            head("/{id}"){
+                tc.retrieveThingById(call)
+            }
+
             post(""){
                 tc.registerAnonymousThing(call)
             }
