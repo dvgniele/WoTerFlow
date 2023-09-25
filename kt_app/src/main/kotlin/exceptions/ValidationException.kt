@@ -1,4 +1,6 @@
 package exceptions
 
-class ValidationException(message: String): RuntimeException(message) {
+import errors.ValidationError
+
+class ValidationException(val errors: List<ValidationError>, message: String? = null): RuntimeException(message) {
 }

@@ -1,4 +1,6 @@
 package exceptions
 
-class ThingException(message: String): RuntimeException(message) {
-}
+import io.ktor.http.*
+
+class ThingException(message: String, val statusCode: HttpStatusCode = HttpStatusCode.BadRequest) :
+    RuntimeException(message)

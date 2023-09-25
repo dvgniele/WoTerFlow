@@ -14,13 +14,32 @@ import org.apache.jena.rdf.model.Model
 import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
 import org.apache.jena.riot.RDFDataMgr
+import java.io.BufferedReader
 import java.io.File
 import java.io.InputStream
+import java.io.InputStreamReader
 import java.net.URL
-import java.nio.charset.Charset
 
 class Utils {
     val jsonMapper: ObjectMapper = jacksonObjectMapper()
+
+    fun downloadFileAsString(uri: String): String {
+        val url = URL(uri)
+        val connection = url.openConnection()
+        val reader = BufferedReader(InputStreamReader(connection.getInputStream()))
+        val content = StringBuilder()
+        var line: String?
+
+        try {
+            while (reader.readLine().also { line = it } != null) {
+                content.append(line).append("\n")
+            }
+        } finally {
+            reader.close()
+        }
+
+        return content.toString()
+    }
 
     fun readFileAsStream(filePath: String): InputStream? {
         return try {
@@ -58,6 +77,10 @@ class Utils {
         }
 
         return modelList
+    }
+
+    fun loadRDFModelById(dataset: Dataset, graphId: String): Model {
+        return dataset.getNamedModel(graphId)
     }
 
     fun hasThingType(thing: ObjectNode): Boolean {
@@ -117,10 +140,6 @@ class Utils {
 
     fun isJsonLd11OrGreater(thing: ObjectNode): Boolean {
         val versionNode = thing["@version"]
-        if (versionNode is DecimalNode) {
-            val version = versionNode.decimalValue().toDouble()
-            return version >= 1.1
-        }
-        return false
+        return versionNode != null
     }
 }
