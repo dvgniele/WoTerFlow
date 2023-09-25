@@ -1,0 +1,9 @@
+ID,Status,Comment
+tdd-http-error-response,pass,passed:TestCreateThing/reject_invalid/response
+tdd-things-create-known-td,pass,passed:TestCreateThing/request
+tdd-things-create-known-td-resp,pass,passed:TestCreateThing/status_code
+tdd-things-crud,pass,passed:TestCreateThing/request
+tdd-things-crudl,pass,passed:TestCreateThing/request
+tdd-validation-response,pass,passed:TestCreateThing/reject_invalid/validation
+tdd-validation-result,pass,passed:TestCreateThing/reject_invalid/validation
+tdd-validation-syntactic,pass,passed:TestCreateThing/reject_invalid/status

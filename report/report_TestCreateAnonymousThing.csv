@@ -1,0 +1,13 @@
+ID,Status,Comment
+tdd-anonymous-td-identifier,pass,passed:TestCreateAnonymousThing/registration_info
+tdd-anonymous-td-local-uuid,pass,passed:TestCreateAnonymousThing/location_header
+tdd-http-error-response,pass,passed:TestCreateAnonymousThing/reject_invalid/response
+tdd-things-create-anonymous-contenttype,pass,passed:TestCreateAnonymousThing/submit_request
+tdd-things-create-anonymous-td,pass,passed:TestCreateAnonymousThing/submit_request
+tdd-things-create-anonymous-td-resp,pass,passed:TestCreateAnonymousThing/status_code passed:TestCreateAnonymousThing/location_header
+tdd-things-create-known-vs-anonymous,pass,passed:TestCreateAnonymousThing/reject_PUT
+tdd-things-crud,pass,passed:TestCreateAnonymousThing/submit_request
+tdd-things-crudl,pass,passed:TestCreateAnonymousThing/submit_request
+tdd-validation-response,pass,passed:TestCreateAnonymousThing/reject_invalid/validation
+tdd-validation-result,pass,passed:TestCreateAnonymousThing/reject_invalid/validation
+tdd-validation-syntactic,pass,passed:TestCreateAnonymousThing/reject_invalid/status
