@@ -1,40 +1,61 @@
 package wot.td
 
-import exceptions.ThingException
+import com.github.jsonldjava.utils.JsonUtils
+import exceptions.ValidationException
 import org.apache.jena.rdf.model.Model
-import org.apache.jena.rdf.model.ModelFactory
-import org.apache.jena.rdf.model.RDFNode
-import org.apache.jena.riot.Lang
-import org.apache.jena.riot.RDFDataMgr
 import org.apache.jena.shacl.ShaclValidator
 import org.apache.jena.shacl.Shapes
 import org.apache.jena.shacl.ValidationReport
-import org.apache.jena.vocabulary.RDF
-import java.io.InputStream
-import java.net.URL
+import org.glassfish.json.JsonUtil
+import utils.Utils
 
-// ttl validation -> https://www.w3.org/ns/td.ttl
-// jsonld validation -> https://www.w3.org/ns/td.jsonld
+//  (prev) ttl validation -> https://www.w3.org/ns/td.ttl
+//  (prev) jsonld validation -> https://www.w3.org/ns/td.jsonld
+
+
+//  (curr) xml shacl validation -> https://www.w3.org/ns/shacl.rdf
+//  (curr) td json schema validation -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-json-schema-validation.json
+//  (curr) tm json schema valdation -> https://github.com/w3c/wot-thing-description/blob/main/validation/tm-json-schema-validation.json
+//  (curr) td validation ttl -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-validation.ttl
+
 class ThingDescriptionValidation {
 
-    fun validateSemantic(tdModel: Model, contextModel: Model): Boolean {
+    val utils = Utils()
+
+    fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
         try {
-            val validator = ShaclValidator.get()
+            val validationReport: ValidationReport = ShaclValidator.get().validate(ttlModel.graph, tdModel.graph)
 
-            val validationReport: ValidationReport = validator.validate(contextModel.graph, tdModel.graph)
+            if(!validationReport.conforms()) {
+                val validationFailures = validationReport.entries.map { entry ->
+                    utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                }
+                return validationFailures
+            }
 
-            return validationReport.conforms()
-
+            return emptyList()
         } catch (e: Exception) {
             throw Exception("Error performing Semantic Validation: ${e.message}")
         }
     }
 
-    fun validateSyntactic(tdModel: Model, ttlModel: Model): Boolean {
-        val shapes = Shapes.parse(ttlModel)
-        val validationReport: ValidationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
+    fun validateSyntactic(tdModel: Model, xmlModel: Model): List<String> {
+        try {
+            val shapes = Shapes.parse(xmlModel)
 
-        return validationReport.conforms()
+            val validationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
+
+            if(!validationReport.conforms()) {
+                val validationFailures = validationReport.entries.map { entry ->
+                    utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                }
+                return validationFailures
+            }
+
+            return emptyList()
+        } catch (e: Exception) {
+            throw Exception("Error performing Syntactic Validation: ${e.message}")
+        }
     }
 
     /* to verify

@@ -26,6 +26,10 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
                 //call.respond(HttpStatusCode.NotImplemented)
             }
 
+            get("/http://example.com/ktwot/graph/{id}") {
+                tc.retrieveThingById(call)
+            }
+
             head("/{id}"){
                 tc.retrieveThingById(call)
             }
@@ -36,6 +40,10 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
 
             post("/"){
                 tc.registerAnonymousThing(call)
+            }
+
+            put("") {
+                //tc.registerAnonymousThing(call)
             }
 
             put("/{id}") {
@@ -50,7 +58,12 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
 
             delete("/{id}") {
                 tc.deleteThing(call)
-                call.respond(HttpStatusCode.NotImplemented)
+                //call.respond(HttpStatusCode.NotImplemented)
+            }
+
+            delete("/http://example.com/ktwot/graph/{id}") {
+                tc.deleteThing(call)
+                //call.respond(HttpStatusCode.NotImplemented)
             }
         }
     }

@@ -2,6 +2,8 @@ package wot.td
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
+import errors.ErrorDetails
+import exceptions.ConversionException
 import exceptions.ThingException
 import exceptions.ValidationException
 import io.ktor.http.*
@@ -15,9 +17,9 @@ import org.apache.jena.shared.NotFoundException
 import org.mapdb.DB
 import utils.Utils
 
-class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
+class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDescriptionService) {
 
-    val ts = ThingDescriptionService(dbRdf, dbJson)
+    val ts = service
     private var utils: Utils = Utils()
 
     suspend fun retrieveAllThings(call: ApplicationCall) {
@@ -79,14 +81,14 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
 
     suspend fun retrieveThingById(call: ApplicationCall) {
         try {
-            val id = utils.hasValidId(call.parameters["id"])
+            val idValid = utils.hasValidId(call.parameters["id"])
+            val id = idValid.substringAfterLast("h")
 
             call.response.header(HttpHeaders.ContentType, "application/td+json")
 
             when (call.request.httpMethod){
                 HttpMethod.Head -> {
                     val retrievedThing = ts.checkIfThingExists(id)
-                    println("id della cosa: $id")
 
                     call.respond(if (retrievedThing) HttpStatusCode.OK else HttpStatusCode.NotFound)
                 }
@@ -96,6 +98,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
                         throw ThingException("Unsupported content type")
                     }
                      */
+
 
                     val retrievedThing = ts.retrieveThingById(id)
 
@@ -116,39 +119,73 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
         try {
             val request = call.request
 
-
             if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
-                throw BadRequestException("Unsupported content type")
+                throw ThingException(
+                    "ContentType not supported. application/td+json required",
+                    HttpStatusCode.UnsupportedMediaType
+                )
             }
 
-            if (utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
-                val thing = utils.hasBody(call.receive())
+             val thing = utils.hasBody(call.receive())
 
-                if (thing != null) {
-                    val requestBodyId: String? = thing.get("@id")?.takeIf { it.isTextual }?.asText()
-                        ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
+            if (thing != null) {
+                val requestBodyId: String? = thing.get("@id")?.takeIf { it.isTextual }?.asText()
+                    ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
 
-                    if (requestBodyId != null) {
-                        throw BadRequestException("The thing must NOT have a 'id' or '@id' property.")
-                    }
-
-                    if (!thing.has("title")) {
-                        throw BadRequestException("The thing must have a 'title' property.")
-                    }
-
-                    val thingId = ts.insertAnonymousThing(thing)
-                    call.response.header(HttpHeaders.Location, thingId)
+                if (requestBodyId != null) {
+                    throw ThingException("The thing must NOT have a 'id' or '@id' property")
                 }
-            } else {
-                throw ThingException("ContentType not supported. application/td+json required.")
+
+                if (!thing.has("title")) {
+                    //throw ThingException("The thing must contain the title field.")
+                }
+
+                val thingId = ts.insertAnonymousThing(thing)
+                call.response.header(HttpHeaders.Location, thingId)
+
+
+                //val json = utils.jsonMapper.writeValueAsString(thing)
+                //call.respondText(json, ContentType.Application.Json, HttpStatusCode.Created)
+                call.respond(HttpStatusCode.Created)
             }
-            call.respond(HttpStatusCode.Created, "Anonymous Thing created successfully")
+
+            //call.respond(HttpStatusCode.Created, "Anonymous Thing created successfully")
         } catch (e: ThingException) {
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = e.statusCode.value,
+                detail = e.message ?: ""
+            )
+            call.respond(e.statusCode, errorDetails)
+        } catch (e: ValidationException) {
+            val errorDetails = ErrorDetails(
+                title = "Validation Exception",
+                status = HttpStatusCode.BadRequest.value,
+                detail = "The input did not pass the Schema validation",
+                validationErrors = e.errors
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: BadRequestException) {
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
+        } catch (e: ConversionException) {
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.InternalServerError, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Internal Server Error",
+                status = HttpStatusCode.InternalServerError.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.InternalServerError, errorDetails)
         }
     }
 
@@ -159,46 +196,74 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
 
 
             if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
-                throw ThingException("Unsupported content type.")
+                throw ThingException(
+                    "ContentType not supported. application/td+json required",
+                    HttpStatusCode.UnsupportedMediaType
+                )
             }
 
-            if (!utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
-                throw ThingException("ContentType not supported. application/td+json required.")
+            val thing = utils.hasBody(call.receive())
+
+            if (thing != null) {
+                val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
+                    ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
+
+                if (requestBodyId != null) {
+                    //throw ThingException("The thing must NOT have a 'id' or '@id' property")
+                }
+
+                if (!thing.has("title")) {
+                    //throw ThingException("The thing must contain the title field.")
+                }
+
+                val thingId = ts.updateThing(thing)
+                call.response.header(HttpHeaders.Location, thingId)
+
+                call.respond(HttpStatusCode.Created, "Thing updated successfully")
             }
-
-            val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
-            println("\n\n\n\n TEST TEST\n${thing.toPrettyString()}\n\n")
-
-            val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
-                ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
-
-            if (requestBodyId == null || requestBodyId != id) {
-                throw ValidationException("IDs do not match. The provided id in the JSON body does not match the id in the request URL.")
-            }
-
-            if (!thing.has("title")) {
-                throw BadRequestException("The thing must have a 'title' property.")
-            }
-
-            val thingId = ts.updateThing(thing)
-            call.response.header(HttpHeaders.Location, thingId)
-
-            call.respond(HttpStatusCode.Created, "Thing updated successfully")
         } catch (e: ThingException) {
-            println("thing exception")
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
-        }  catch (e: ValidationException) {
-            println("validation")
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = e.statusCode.value,
+                detail = e.message ?: ""
+            )
+            call.respond(e.statusCode, errorDetails)
+        } catch (e: ValidationException) {
+            val errorDetails = ErrorDetails(
+                title = "Validation Exception",
+                status = HttpStatusCode.BadRequest.value,
+                detail = "The input did not pass the Schema validation",
+                validationErrors = e.errors
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: BadRequestException) {
-            println("bad request")
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
+        } catch (e: ConversionException) {
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: NotFoundException) {
-            println("not found")
-            call.respond(HttpStatusCode.NotFound, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Not Found",
+                status = HttpStatusCode.NotFound.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.NotFound, errorDetails)
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.InternalServerError, "${e.message}")
-            println("Error during Thing Update: ${e.localizedMessage}")
+            val errorDetails = ErrorDetails(
+                title = "Internal Server Error",
+                status = HttpStatusCode.InternalServerError.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.InternalServerError, errorDetails)
         }
     }
 
@@ -208,33 +273,70 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?) {
             val request = call.request
 
             if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
-                throw ThingException("Unsupported content type.")
+                throw ThingException(
+                    "ContentType not supported. application/td+json required",
+                    HttpStatusCode.UnsupportedMediaType
+                )
             }
 
-            if (!utils.hasJsonContent(call.request.header(HttpHeaders.ContentType))) {
-                throw ThingException("ContentType not supported. application/td+json required.")
+            val thing = utils.hasBody(call.receive())
+
+            if (thing != null) {
+                val thingId = ts.patchThing(thing)
+                call.response.header(HttpHeaders.Location, thingId)
+
+                call.respond(HttpStatusCode.Created, "Thing patched successfully")
             }
-
-            val thing = utils.hasBody(call.receive()) ?: throw BadRequestException("Invalid JSON body")
-
-            val thingId = ts.patchThing(thing)
-            call.response.header(HttpHeaders.Location, thingId)
-
-            call.respond(HttpStatusCode.Created, "Thing patched successfully")
         } catch (e: ThingException) {
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = e.statusCode.value,
+                detail = e.message ?: ""
+            )
+            call.respond(e.statusCode, errorDetails)
+        } catch (e: ValidationException) {
+            val errorDetails = ErrorDetails(
+                title = "Validation Exception",
+                status = HttpStatusCode.BadRequest.value,
+                detail = "The input did not pass the Schema validation",
+                validationErrors = e.errors
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: BadRequestException) {
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
+        } catch (e: ConversionException) {
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = HttpStatusCode.BadRequest.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.BadRequest, errorDetails)
         } catch (e: NotFoundException) {
-            call.respond(HttpStatusCode.NotFound, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Not Found",
+                status = HttpStatusCode.NotFound.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.NotFound, errorDetails)
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.InternalServerError, "${e.message}")
-            println("Error during Thing Patch: ${e.localizedMessage}")
+            val errorDetails = ErrorDetails(
+                title = "Internal Server Error",
+                status = HttpStatusCode.InternalServerError.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.InternalServerError, errorDetails)
         }
     }
 
     suspend fun deleteThing(call: ApplicationCall) {
-        val id = call.parameters["id"] ?: throw ThingException("Missing thing ID")
+
+        val requestId = call.parameters["id"] ?: throw ThingException("Missing thing ID")
+        val id = requestId.substringAfterLast("h")
 
         try {
             ts.deleteThingById(id)
