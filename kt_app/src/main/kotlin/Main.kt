@@ -21,7 +21,9 @@ import org.mapdb.DBMaker
 import org.slf4j.event.Level
 import wot.td.ThingDescriptionController
 import wot.td.ThingDescriptionRoutesController
+import wot.td.ThingDescriptionService
 import java.io.File
+import javax.xml.crypto.Data
 
 fun listFilesInFolder(folderPath: String) {
     println("verifying what files are there")
@@ -97,7 +99,10 @@ fun main(args: Array<String>) {
             jackson()
         }
 
-        val tc = ThingDescriptionController(rdf_db, json_db)
+        val ts = ThingDescriptionService(rdf_db, json_db)
+        val tc = ThingDescriptionController(rdf_db, json_db, ts)
+
+        ts.refreshJsonDb()
         //tc.initializeDatabaseIfNeeded()
 
         val routesController = ThingDescriptionRoutesController(tc)

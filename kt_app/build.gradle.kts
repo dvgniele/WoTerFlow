@@ -63,6 +63,10 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.jena/jena-fuseki
     implementation("org.apache.jena:jena-fuseki-main:$jena_version")
 
+    // https://mvnrepository.com/artifact/com.apicatalog/titanium-json-ld
+    implementation("com.apicatalog:titanium-json-ld:1.3.2")
+
+
 
     // https://mvnrepository.com/artifact/org.mapdb/mapdb
     implementation("org.mapdb:mapdb:3.0.9")
