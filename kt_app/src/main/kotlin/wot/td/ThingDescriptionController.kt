@@ -216,10 +216,16 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
                     //throw ThingException("The thing must contain the title field.")
                 }
 
-                val thingId = ts.updateThing(thing)
+                val thingUpdate = ts.updateThing(thing)
+                val thingId = thingUpdate.first
+                val thingExists = thingUpdate.second
+
                 call.response.header(HttpHeaders.Location, thingId)
 
-                call.respond(HttpStatusCode.Created, "Thing updated successfully")
+                if (thingExists)
+                    call.respond(HttpStatusCode.NoContent)
+                else
+                    call.respond(HttpStatusCode.Created, "Thing updated successfully")
             }
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(

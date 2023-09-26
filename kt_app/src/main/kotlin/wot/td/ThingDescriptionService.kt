@@ -58,6 +58,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
     private var ttlContextModel: Model = utils.loadModel(ttlContextResourcePath, Lang.TURTLE)
     private var xmlShapesModel: Model = utils.loadModel(xmlShapesPath, Lang.RDFXML)
 
+
     private fun refreshJsonDbItem(graphId: String) {
         try {
             val ttlModel = utils.loadRDFModelById(rdfDataset, graphId)
@@ -129,7 +130,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             println(tdV11.toPrettyString())
 
             val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toString(), Lang.JSONLD11)
-            val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
+            //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
 
             val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
             val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
@@ -214,7 +215,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         }
     }
 
-    fun updateThing(td: ObjectNode): String {
+    fun updateThing(td: ObjectNode): Pair<String, Boolean> {
         val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
             ?: td.get("id")?.takeIf { it.isTextual }?.asText()
             ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
@@ -224,6 +225,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         var query = ""
 
         try {
+            val existsAlready = checkIfThingExists(id)
             val graphId = utils.strconcat(GRAPH_PREFIX, id)
 
             val tdVersion11p = utils.isJsonLd11OrGreater(td)
@@ -243,7 +245,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             //println("ttl model:\n$turtleModel")
 
             //  Performing Syntactic Validation
-            val syntacticValidationFailures = validator.validateSyntactic(xmlModel, xmlShapesModel)
+            val syntacticValidationFailures = validator.validateSyntactic(xmlModel, jsonLdContextModel)
 
             if (syntacticValidationFailures.isNotEmpty()) {
                 //val failureMessage = syntacticValidationFailures.joinToString(", "){ it.toString() }
@@ -300,7 +302,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             //  Commit to close db connection
             rdfDataset.commit()
 
-            return id
+            return Pair(id, existsAlready)
         } catch (e: ThingException) {
             rdfDataset.abort()
 
@@ -334,8 +336,10 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             if (thing != null) {
                 thing.setAll<ObjectNode>(td)
 
+                decorateThingDescription(thing)
+
                 val jsonRdfModel = converter.convertJsonLdToRdf(thing.toPrettyString(), Lang.JSONLD11)
-                val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
+                //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
 
                 val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
                 val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
