@@ -1,0 +1,9 @@
+ID,Status,Comment
+tdd-http-error-response,pass,passed:TestUpdateThing/reject_invalid/response
+tdd-things-crud,pass,passed:TestUpdateThing/submit_request
+tdd-things-crudl,pass,passed:TestUpdateThing/submit_request
+tdd-things-update,pass,passed:TestUpdateThing/submit_request passed:TestUpdateThing/payload
+tdd-things-update-resp,pass,passed:TestUpdateThing/status_code
+tdd-validation-response,pass,passed:TestUpdateThing/reject_invalid/validation
+tdd-validation-result,pass,passed:TestUpdateThing/reject_invalid/validation
+tdd-validation-syntactic,pass,passed:TestUpdateThing/reject_invalid/status
