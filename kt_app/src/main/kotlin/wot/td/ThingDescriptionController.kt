@@ -291,7 +291,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
                 val thingId = ts.patchThing(thing, id)
                 call.response.header(HttpHeaders.Location, thingId)
 
-                call.respond(HttpStatusCode.Created, "Thing patched successfully")
+                call.respond(HttpStatusCode.NoContent)
             }
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(
