@@ -18,11 +18,15 @@ import com.apicatalog.jsonld.JsonLd
 import com.apicatalog.jsonld.JsonLdOptions
 import com.apicatalog.jsonld.JsonLdVersion
 import com.apicatalog.jsonld.document.JsonDocument
+import com.apicatalog.jsonld.document.RdfDocument
 import com.fasterxml.jackson.databind.node.TextNode
+import com.fasterxml.jackson.module.kotlin.readValue
 import exceptions.ThingException
 import jakarta.json.Json
+import jakarta.json.JsonObject
 import java.io.StringReader
 import java.io.StringWriter
+import java.net.URI
 import java.nio.charset.StandardCharsets
 
 class RDFConverter {
@@ -48,29 +52,173 @@ class RDFConverter {
         contextV11Document = JsonDocument.of(contextV11data.reader())
 
         options11.setExpandContext(contextV11)
+        options11.base = URI(contextV11)
         options11.processingMode = JsonLdVersion.V1_1
         options11.isExplicit = false
         options11.isCompactArrays = true
-        options11.isCompactToRelative = false
-        options11.isRdfStar = false
+        options11.isCompactToRelative = true
     }
 
+    fun toJsonLd11(thing: ObjectNode): ObjectNode {
+        try {
+            val objectMapper = ObjectMapper()
+
+            if (thing.has("securityDefinitions")) {
+                val securityDefinitions = thing.get("securityDefinitions")
+                val updatedSecurityDefinitions = JsonNodeFactory.instance.objectNode()
+
+                securityDefinitions.fieldNames().forEach { fieldName ->
+                    val securityDefinition = securityDefinitions.get(fieldName)
+                    if (fieldName == "@none") {
+                        val scheme = securityDefinition.get("scheme").textValue()
+                        val newNode = JsonNodeFactory.instance.objectNode()
+                        newNode.put("scheme", scheme)
+                        updatedSecurityDefinitions.put("nosec_sc", newNode)
+                    } else {
+                        if (securityDefinition.has("td:scheme")) {
+                            val scheme = securityDefinition.get("td:scheme")
+                            (securityDefinition as ObjectNode).put("scheme", scheme.textValue())
+                            securityDefinition.remove("td:scheme")
+                        }
+                        updatedSecurityDefinitions.put(fieldName, securityDefinition)
+                    }
+                }
+
+                thing.put("securityDefinitions", updatedSecurityDefinitions)
+            }
+
+            if (thing.has("hasSecurityConfiguration")) {
+                thing.set<ObjectNode>("security", thing.remove("hasSecurityConfiguration"))
+            }
+            if (thing.has("security") && thing.get("security") !is ArrayNode){
+                val security = objectMapper.createArrayNode()
+                security.add(thing.remove("security"))
+                thing.set<ArrayNode>("security", security)
+            }
+
+            val context = thing.get("@context")
+
+            when (context) {
+                is ObjectNode -> {
+                    val modifiedContext = context.deepCopy()
+                    if (modifiedContext.has(contextV10)) {
+                        modifiedContext.put(contextV10, contextV11)
+                        thing.set<ObjectNode>("@context", modifiedContext)
+                    }
+                }
+                is ArrayNode -> {
+                    val modifiedContext = context.deepCopy()
+                    val elements = modifiedContext.elements()
+                    var index = 0
+                    while (elements.hasNext()) {
+                        val element = elements.next()
+                        if (element.isTextual && element.asText() == contextV10) {
+                            (modifiedContext as ArrayNode).set(index, TextNode.valueOf(contextV11))
+                        }
+                        index++
+                    }
+                    thing.set<ObjectNode>("@context", modifiedContext)
+
+                }
+                is TextNode -> {
+                    if (context.asText() == contextV10) {
+                        thing.put("@context", contextV11)
+                    }
+                }
+                null -> {
+                    thing.put("@context", contextV11)
+                }
+            }
+
+            if (thing.has("registration")) {
+                val registration = thing.get("registration") as ObjectNode
+                registration.remove("id")
+            }
+
+            if (thing.has("td:title"))
+                thing.put("title", thing.remove("td:title"))
+
+            thing.put("@version", "1.1")
+
+            /*
+                        if (thing.has("id")) {
+                            thing.set<ObjectNode>("@id", thing.remove("id"))
+                        }
+            */
+
+            // todo: check contexts
+
+            return thing
+        } catch (e: Exception) {
+            throw ConversionException("Error converting to JSON-LD 1.1")
+        }
+    }
+
+    fun fromRdf(rdfModel: Model): ObjectNode {
+        try {
+            val document = RdfDocument.of(toString(rdfModel).reader())
+            val jsonArray = JsonLd.fromRdf(document).get()
+            val jsonDocument = JsonDocument.of(jsonArray.toString().reader())
+
+            /*
+                        val jsonLdDocument = JsonLd.toRdf(jsonDocument)
+                            .options(options11)
+                            .get()
+            */
+
+//            val serialized = groupQuads(jsonLdDocument.toList())
+
+            val expanded = JsonLd.expand(jsonDocument).get()
+            val expandedDocument = JsonDocument.of(expanded)
+
+            val flattened = JsonLd.flatten(expandedDocument).get()
+
+            val framed = JsonLd.frame(expandedDocument, contextV11Document).get()
+            //val compacted = JsonLd.compact(jsonDocument, contextV11Document).get()
+
+            val graphed = getGraphFromModel(framed)
+
+
+
+            return graphed!!
+        } catch (e: Exception) {
+            throw ConversionException("Error converting from RDF to JSON-LD: ${e.message}")
+        }
+    }
+
+    private fun getGraphFromModel(jsonObject: JsonObject): ObjectNode? {
+        val objectMapper = ObjectMapper()
+        val jsonString = jsonObject.toString()
+
+        val node = objectMapper.readValue<ObjectNode>(jsonString)
+
+        val graphArray = node["@graph"]
+        if (graphArray != null && graphArray.isArray) {
+            val nonAnonItem = graphArray.find { item ->
+                item is ObjectNode && item.has("id") && !item["id"].textValue().startsWith("_:")
+            }
+            if (nonAnonItem is ObjectNode) {
+                return nonAnonItem
+            }
+        }
+        return null
+    }
+
+    fun toString(model: Model): String {
+        try {
+            val writer = StringWriter()
+            model.write(writer, Lang.NTRIPLES.name, contextV11)
+            return writer.toString()
+        } catch (e: Exception) {
+            throw ConversionException("Error converting RDF to string: ${e.message}")
+        }
+    }
 
     fun convertRdfModelToObjectNode(rdfModelString: Model): ObjectNode {
         try {
             val serializedModel = convertRdfToStringSerialization(rdfModelString, Lang.TURTLE)
 
             return convertTurtleToJsonLd(serializedModel)
-        } catch (e: Exception) {
-            throw ConversionException("Error converting RDF Model String to ObjectNode: ${e.message}")
-        }
-    }
-
-    fun convertRdfModelToObjectNode2(rdfModelString: Model): ObjectNode {
-        try {
-            val serializedModel = convertRdfToStringSerialization(rdfModelString, Lang.TURTLE)
-
-            return convertTurtleToJsonLd2(serializedModel)
         } catch (e: Exception) {
             throw ConversionException("Error converting RDF Model String to ObjectNode: ${e.message}")
         }
@@ -275,61 +423,6 @@ class RDFConverter {
         }
     }
 
-
-    /*
-    fun convertJsonLdToRdf(jsonLdString: String, lang: Lang, bl: String): Model {
-        try {
-            val jsonLdNode = JsonUtils.fromString(jsonLdString)
-
-            val options = JsonLdOptions()
-
-            // Set options to include the @context dynamically if present in the JSON-LD
-            if ((jsonLdNode is Map<*, *>) && jsonLdNode.containsKey("@context")) {
-                val context = jsonLdNode["@context"]
-                when (context) {
-                    is String -> {
-                        //  Create a HashMap and set the context
-                        val contextMap = hashMapOf<String, Any>("@context" to context)
-                        options.expandContext = contextMap
-                    }
-                    is List<*> -> {
-                        //  Handle the case where @context is an array of strings
-                        val contextArray = context.mapNotNull { it as? String }
-                        if (contextArray.isNotEmpty()) {
-                            options.expandContext = contextArray
-                        }
-                    }
-                    is Map<*, *> -> {
-                        options.expandContext = context
-                    }
-                }
-            } else {
-                //  Handle when @context is not present
-                throw ValidationException("Validation Error: The thing must contain a @context field")
-            }
-
-            println("\nle options\n${options.expandContext}")
-
-            val expandedJsonLd = JsonLd.expand(jsonLdNode, options)
-
-            println("sono arrivato al successivo")
-
-
-            val model = ModelFactory.createDefaultModel()
-
-            // Convert the expanded JSON-LD to RDF
-            val jsonLdStringReader = StringReader(JsonUtils.toPrettyString(expandedJsonLd))
-            RDFDataMgr.read(model, jsonLdStringReader, null, lang)
-
-            return model
-        } catch (e: Exception) {
-            throw ConversionException("Error converting JSON-LD to ${lang.name.uppercase()}: ${e.message}")
-        }
-    }
-
-     */
-
-
     fun convertTurtleToJsonLd(turtleData: String): ObjectNode {
         try {
             val model = ModelFactory.createDefaultModel()
@@ -431,103 +524,4 @@ class RDFConverter {
         return collectionNode
     }
 
-    fun convertTurtleToJsonLd2(turtleData: String): ObjectNode {
-        try {
-            val model = ModelFactory.createDefaultModel()
-            val rdfDataReader = StringReader(turtleData)
-            RDFDataMgr.read(model, rdfDataReader, null, Lang.TURTLE)
-
-            //val jsonLdContext = "https://www.w3.org/2019/wot/td/v1"
-
-            val jsonLdObject = JsonNodeFactory.instance.objectNode()
-            //jsonLdObject.put("@context", jsonLdContext)
-
-            //  Create a map to store the subject blocks
-            val subjectBlocks = mutableMapOf<String, ObjectNode>()
-
-            //  Iterate over the statements of the RDF model
-            val stmtIterator = model.listStatements()
-            while (stmtIterator.hasNext()) {
-                val stmt = stmtIterator.nextStatement()
-                val subjectURI = stmt.subject.toString()
-                val predicateURI = stmt.predicate.toString()
-                val objectNode = stmt.`object`
-
-                //  Get or create the subject block
-                val subjectBlock = subjectBlocks.getOrPut(subjectURI) {
-                    JsonNodeFactory.instance.objectNode()
-                }
-
-                //  Add the predicate and object to the subject block
-                addProperty2(subjectBlock, predicateURI, objectNode)
-            }
-
-            //  Find the subject with "urn:" and add it as a top-level block with @id
-            val urnSubject = subjectBlocks.keys.find { it.startsWith("urn:") }
-            if (urnSubject != null) {
-                val topLevelBlock = subjectBlocks[urnSubject]
-                topLevelBlock?.put("@id", urnSubject)
-                jsonLdObject.setAll<ObjectNode>(topLevelBlock)
-            }
-
-            return jsonLdObject
-        } catch (e: Exception) {
-            throw ConversionException("Error converting Turtle to JSON-LD: ${e.message}")
-        }
-    }
-
-    fun addProperty2(node: ObjectNode, predicateURI: String, objectNode: RDFNode) {
-        val predicateName = predicateURI
-
-        if (predicateName.startsWith("@")) {
-            //  Handle predicates starting with "@", e.g., "@type"
-            node.put(predicateName, objectNode.toString())
-        } else {
-            //  Handle other predicates
-            if (objectNode.isLiteral) {
-                // Handle literal values
-                val literalValue = objectNode.asLiteral().string
-                node.put(predicateName, literalValue)
-            } else if (objectNode.isResource) {
-                //  Handle resource values
-                val resourceURI = objectNode.asResource().uri
-
-                //  handle the object if represents a collection
-                if (objectNode.isAnon) {
-
-                    val collectionNode = handleCollection2(objectNode.asResource())
-                    if (node.has(predicateName)) {
-
-                        val existingValue = node.get(predicateName)
-                        if (existingValue is ArrayNode) {
-                            existingValue.add(collectionNode)
-                        } else {
-                            val arrayNode = JsonNodeFactory.instance.arrayNode()
-                            arrayNode.add(existingValue)
-                            arrayNode.add(collectionNode)
-                            node.set(predicateName, arrayNode)
-                        }
-                    } else {
-                        node.set(predicateName, collectionNode)
-                    }
-
-                }
-                else {
-                    node.put(utils.strconcat("@", predicateName.substringAfterLast("#")), resourceURI)
-                }
-            }
-        }
-    }
-
-    fun handleCollection2(collection: Resource): ObjectNode {
-        val collectionNode = JsonNodeFactory.instance.objectNode()
-        val iterator = collection.listProperties()
-        while (iterator.hasNext()) {
-            val arrayElement = iterator.next()
-            val predicateName = arrayElement.predicate.toString()
-            val objectValue = arrayElement.`object`.toString()
-            collectionNode.put(predicateName, objectValue)
-        }
-        return collectionNode
-    }
 }
