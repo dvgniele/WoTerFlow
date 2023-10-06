@@ -1,8 +1,5 @@
 package wot.td
 
-import com.apicatalog.jsonld.JsonLd
-import com.apicatalog.jsonld.JsonLdVersion
-import com.apicatalog.jsonld.document.JsonDocument
 import com.fasterxml.jackson.databind.node.ObjectNode
 import errors.ValidationError
 import exceptions.ConversionException
@@ -63,7 +60,9 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         try {
             val ttlModel = utils.loadRDFModelById(rdfDataset, graphId)
 
-            val thing = converter.convertRdfModelToJsonLd(ttlModel)
+
+            val objNode = converter.fromRdf(ttlModel)
+            val thing = converter.toJsonLd11(utils.toJson(objNode.toString()))
 
             if (thingsMap.containsKey(graphId)) {
                 thingsMap.remove(graphId)
@@ -76,16 +75,16 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
         }
     }
-
     fun refreshJsonDb() {
         rdfDataset.begin(ReadWrite.READ)
 
         try {
             val ttlList = utils.loadRDFDatasetIntoModelList(rdfDataset)
-            val things = ttlList.map { converter.convertRdfModelToJsonLd(it) }
+            val things = ttlList.map { converter.toJsonLd11(converter.fromRdf(it)) }
 
             //  Clear the things map and populate it back with the updated dataset
             thingsMap.clear()
+
             things.forEach { thing ->
                 thing["@id"]?.asText()?.let { id ->
                     thingsMap[utils.strconcat(GRAPH_PREFIX,id)] = thing
@@ -100,6 +99,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         }
 
     }
+
     fun insertAnonymousThing(td: ObjectNode): String {
         rdfDataset.begin(ReadWrite.WRITE)
 
@@ -122,57 +122,41 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             // Checking the jsonld version and upgrading if needed
             val tdVersion11p = utils.isJsonLd11OrGreater(td)
 
-            val tdV11 = if (!tdVersion11p) converter.convertJsonLd10ToJsonLd11(td) else td
-            //val tdV11 = td
+            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
             // JsonLd decoration with missing fields
             decorateThingDescription(tdV11)
-            println(tdV11.toPrettyString())
 
             val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toString(), Lang.JSONLD11)
-            //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
-
-            val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
-            val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
-
-            val thingXmlString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.RDFXML)
-            val xmlModel = converter.convertRdfStringToRdf(thingXmlString, Lang.RDFXML)
 
             //  Performing Syntactic Validation
-
-            val syntacticValidationFailures = validator.validateSyntactic(xmlModel, xmlShapesModel)
+            val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
             if (syntacticValidationFailures.isNotEmpty()) {
-                //val failureMessage = syntacticValidationFailures.joinToString(", "){ it.toString() }
-
-                //println("Syntactic Validation Failed: $failureMessage")
-                //throw ValidationException("Syntactic Validation Failed: $failureMessage")
-
                 val validationErrors = syntacticValidationFailures.map {
                     ValidationError(
                         "Syntactic Validation",
-                        it.toString())
+                        it)
                 }
                 throw ValidationException(validationErrors, "Syntactic Validation Failed")
             }
 
             //  Performing Semantic Validation
 
-            val semanticValidationFailures = validator.validateSemantic(turtleModel, ttlContextModel)
+            val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
 
             if (semanticValidationFailures.isNotEmpty()) {
-                //val failureMessage = semanticValidationFailures.joinToString(", "){ it }
-
-                //println("Semantic Validation Failed: $failureMessage")
-                //throw ValidationException("Semantic Validation Failed: $failureMessage")
-
-                val validationErrors = semanticValidationFailures.map { ValidationError("Semantic Validation", it) }
+                val validationErrors = semanticValidationFailures.map {
+                    ValidationError(
+                        "Semantic Validation",
+                        it)
+                }
                 throw ValidationException(validationErrors, "Semantic Validation Failed")
             }
 
 
             // Query preparation for RDF data storing
-            val rdfTriplesString = thingTurtleString
+            val rdfTriplesString = converter.toString(jsonRdfModel)
             query = """
             INSERT DATA {
                 GRAPH <$graphId> {
@@ -229,54 +213,39 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             val graphId = utils.strconcat(GRAPH_PREFIX, id)
 
             val tdVersion11p = utils.isJsonLd11OrGreater(td)
-            val tdV11 = if (!tdVersion11p) converter.convertJsonLd10ToJsonLd11(td) else td
+            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
             decorateThingDescription(tdV11)
 
             val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
-            val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
-
-            val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
-            val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
-
-            val thingXmlString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.RDFXML)
-            val xmlModel = converter.convertRdfStringToRdf(thingXmlString, Lang.RDFXML)
-
-            //println("ttl model:\n$turtleModel")
 
             //  Performing Syntactic Validation
-            val syntacticValidationFailures = validator.validateSyntactic(xmlModel, jsonLdContextModel)
+            val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
             if (syntacticValidationFailures.isNotEmpty()) {
-                //val failureMessage = syntacticValidationFailures.joinToString(", "){ it.toString() }
-
-                //println("Syntactic Validation Failed: $failureMessage")
-                //throw ValidationException("Syntactic Validation Failed: $failureMessage")
-
                 val validationErrors = syntacticValidationFailures.map {
                     ValidationError(
                         "Syntactic Validation",
-                        it.toString())
+                        it)
                 }
                 throw ValidationException(validationErrors, "Syntactic Validation Failed")
             }
 
             //  Performing Semantic Validation
 
-            val semanticValidationFailures = validator.validateSemantic(turtleModel, ttlContextModel)
+            val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
 
             if (semanticValidationFailures.isNotEmpty()) {
-                //val failureMessage = semanticValidationFailures.joinToString(", "){ it }
-
-                //println("Semantic Validation Failed: $failureMessage")
-                //throw ValidationException("Semantic Validation Failed: $failureMessage")
-
-                val validationErrors = semanticValidationFailures.map { ValidationError("Semantic Validation", it) }
+                val validationErrors = semanticValidationFailures.map {
+                    ValidationError(
+                        "Semantic Validation",
+                        it)
+                }
                 throw ValidationException(validationErrors, "Semantic Validation Failed")
             }
 
             // Query preparation for RDF data storing
-            val rdfTriplesString = thingTurtleString
+            val rdfTriplesString = converter.toString(jsonRdfModel)
             query = """
             DELETE WHERE {
                 GRAPH <$graphId> {
@@ -320,68 +289,57 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         }
     }
 
-    fun patchThing(td: ObjectNode): String {
+    fun patchThing(td: ObjectNode, id: String): String {
+        /*
         val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
             ?: td.get("id")?.takeIf { it.isTextual }?.asText()
             ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
+         */
 
         rdfDataset.begin(ReadWrite.WRITE)
 
         var query = ""
 
         try {
-            val graphId = utils.strconcat(GRAPH_PREFIX, td.get("@id").asText())
+            val graphId = utils.strconcat(GRAPH_PREFIX, id)
             val thing = retrieveThingById(id)
 
             if (thing != null) {
                 thing.setAll<ObjectNode>(td)
 
+                removeEmptyProperties(thing)
+
                 decorateThingDescription(thing)
 
-                val jsonRdfModel = converter.convertJsonLdToRdf(thing.toPrettyString(), Lang.JSONLD11)
-                //val jsonRdfModelString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.JSONLD11)
-
-                val thingTurtleString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.TURTLE)
-                val turtleModel = converter.convertRdfStringToRdf(thingTurtleString, Lang.TURTLE)
-
-                val thingXmlString = converter.convertRdfToStringSerialization(jsonRdfModel, Lang.RDFXML)
-                val xmlModel = converter.convertRdfStringToRdf(thingXmlString, Lang.RDFXML)
-
-                //println("ttl model:\n$turtleModel")
+                val jsonRdfModel = converter.convertJsonLdToRdf(thing.toString(), Lang.JSONLD11)
 
                 //  Performing Syntactic Validation
-                val syntacticValidationFailures = validator.validateSyntactic(xmlModel, xmlShapesModel)
+                val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
                 if (syntacticValidationFailures.isNotEmpty()) {
-                    //val failureMessage = syntacticValidationFailures.joinToString(", "){ it.toString() }
-
-                    //println("Syntactic Validation Failed: $failureMessage")
-                    //throw ValidationException("Syntactic Validation Failed: $failureMessage")
-
                     val validationErrors = syntacticValidationFailures.map {
                         ValidationError(
                             "Syntactic Validation",
-                            it.toString())
+                            it)
                     }
                     throw ValidationException(validationErrors, "Syntactic Validation Failed")
                 }
 
                 //  Performing Semantic Validation
 
-                val semanticValidationFailures = validator.validateSemantic(turtleModel, ttlContextModel)
+                val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
 
                 if (semanticValidationFailures.isNotEmpty()) {
-                    //val failureMessage = semanticValidationFailures.joinToString(", "){ it }
-
-                    //println("Semantic Validation Failed: $failureMessage")
-                    //throw ValidationException("Semantic Validation Failed: $failureMessage")
-
-                    val validationErrors = semanticValidationFailures.map { ValidationError("Semantic Validation", it) }
+                    val validationErrors = semanticValidationFailures.map {
+                        ValidationError(
+                            "Semantic Validation",
+                            it)
+                    }
                     throw ValidationException(validationErrors, "Semantic Validation Failed")
                 }
 
                 // Query preparation for RDF data storing
-                val rdfTriplesString = thingTurtleString
+                val rdfTriplesString = converter.toString(jsonRdfModel)
                 query = """
                 DELETE WHERE {
                     GRAPH <$graphId> {
@@ -503,5 +461,21 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         //  Add registration info: "modified" with the current timestamp
         registrationInfo.put("modified", Instant.now().toString())
         td.set<ObjectNode>("registration", registrationInfo)
+    }
+
+    private fun removeEmptyProperties(objectNode: ObjectNode) {
+        val fieldsToRemove = mutableListOf<String>()
+
+        objectNode.fields().forEach { (fieldName, fieldValue)  ->
+            if (fieldValue.isNull) {
+                fieldsToRemove.add(fieldName)
+            } else if (fieldValue.isObject) {
+                removeEmptyProperties(fieldValue as ObjectNode) //  Recursive call for nested objects
+            }
+        }
+
+        fieldsToRemove.forEach {
+            objectNode.remove(it)
+        }
     }
 }
