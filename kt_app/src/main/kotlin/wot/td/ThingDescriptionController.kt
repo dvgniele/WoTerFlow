@@ -126,7 +126,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
                 )
             }
 
-             val thing = utils.hasBody(call.receive())
+            val thing = utils.hasBody(call.receive())
 
             if (thing != null) {
                 val requestBodyId: String? = thing.get("@id")?.takeIf { it.isTextual }?.asText()
@@ -288,7 +288,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
             val thing = utils.hasBody(call.receive())
 
             if (thing != null) {
-                val thingId = ts.patchThing(thing)
+                val thingId = ts.patchThing(thing, id)
                 call.response.header(HttpHeaders.Location, thingId)
 
                 call.respond(HttpStatusCode.Created, "Thing patched successfully")

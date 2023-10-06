@@ -9,6 +9,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import exceptions.ThingException
 import io.ktor.http.*
+import jakarta.json.JsonObject
 import org.apache.jena.query.Dataset
 import org.apache.jena.rdf.model.Model
 import org.apache.jena.rdf.model.ModelFactory
@@ -116,7 +117,8 @@ class Utils {
         val allowedContentTypes = listOf(
             ContentType.Application.Json,
             ContentType.parse("application/td+json"),
-            ContentType.parse("application/ld+json")
+            ContentType.parse("application/ld+json"),
+            ContentType.parse("application/merge-patch+json")
         )
 
         return allowedContentTypes.any { it.match(contentType) }
@@ -141,5 +143,10 @@ class Utils {
     fun isJsonLd11OrGreater(thing: ObjectNode): Boolean {
         val versionNode = thing["@version"]
         return versionNode != null
+    }
+
+    fun toJson(td: String): ObjectNode {
+        val objectMapper = ObjectMapper()
+        return objectMapper.readValue<ObjectNode>(td)
     }
 }

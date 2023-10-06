@@ -24,7 +24,8 @@ class ThingDescriptionValidation {
 
     fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
         try {
-            val validationReport: ValidationReport = ShaclValidator.get().validate(ttlModel.graph, tdModel.graph)
+            val shapes = Shapes.parse(ttlModel)
+            val validationReport: ValidationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
 
             if(!validationReport.conforms()) {
                 val validationFailures = validationReport.entries.map { entry ->
