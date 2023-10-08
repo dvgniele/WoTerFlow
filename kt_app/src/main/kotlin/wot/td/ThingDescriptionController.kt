@@ -346,11 +346,21 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
 
         try {
             ts.deleteThingById(id)
-            call.respond(HttpStatusCode.NoContent, "Thing deleted successfully")
+            call.respond(HttpStatusCode.NoContent)
         } catch (e: ThingException) {
-            call.respond(HttpStatusCode.BadRequest, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Bad Request",
+                status = e.statusCode.value,
+                detail = e.message ?: ""
+            )
+            call.respond(e.statusCode, errorDetails)
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.InternalServerError, "${e.message}")
+            val errorDetails = ErrorDetails(
+                title = "Internal Server Error",
+                status = HttpStatusCode.InternalServerError.value,
+                detail = e.message ?: ""
+            )
+            call.respond(HttpStatusCode.InternalServerError, errorDetails)
         }
     }
 }
