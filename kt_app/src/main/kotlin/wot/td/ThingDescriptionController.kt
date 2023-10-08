@@ -25,9 +25,11 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
     suspend fun retrieveAllThings(call: ApplicationCall) {
         val request = call.request
 
-        if (!utils.hasJsonContent(request.header(HttpHeaders.Accept))) {
-            call.respond(HttpStatusCode.BadRequest, "Unsupported content type")
-        }
+        /*
+                if (!utils.hasJsonContent(request.header(HttpHeaders.Accept))) {
+                    call.respond(HttpStatusCode.BadRequest, "Unsupported content type")
+                }
+        */
 
         val responseFormat = request.queryParameters["format"]
         val limit = request.queryParameters["limit"]?.toInt() ?: 20
@@ -38,21 +40,29 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
             throw NotImplemented("Ordering is not supported")
         }
 
-        call.response.header(HttpHeaders.ContentType, "application/td+json")
-        call.response.status(HttpStatusCode.OK)
+        call.response.header(HttpHeaders.ContentType, "application/ld+json")
 
-        val things = ts.retrieveAllThings()
+        when (call.request.httpMethod) {
+            HttpMethod.Head -> {
+                call.respond(HttpStatusCode.OK)
+            }
+            HttpMethod.Get -> {
+                call.response.status(HttpStatusCode.OK)
 
-        val responseBody = if (responseFormat == "collection") {
-            val collectionResponse = generateCollectionResponse(call, things.size, offset, limit)
-            collectionResponse.putArray("members").addAll(things.map { ObjectMapper().valueToTree(it) })
-            collectionResponse
-        } else {
-            generateListingResponse(call, things.size, offset, limit)
-            things
+                val things = ts.retrieveAllThings()
+
+                val responseBody = if (responseFormat == "collection") {
+                    val collectionResponse = generateCollectionResponse(call, things.size, offset, limit)
+                    collectionResponse.putArray("members").addAll(things.map { ObjectMapper().valueToTree(it) })
+                    collectionResponse
+                } else {
+                    generateListingResponse(call, things.size, offset, limit)
+                    things
+                }
+
+                call.respond(responseBody)
+            }
         }
-
-        call.respond(responseBody)
     }
 
     private fun generateListingResponse(call: ApplicationCall, count: Int, offset: Int, limit: Int) {
@@ -84,7 +94,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
             val idValid = utils.hasValidId(call.parameters["id"])
             val id = idValid.substringAfterLast("h")
 
-            call.response.header(HttpHeaders.ContentType, "application/td+json")
+            call.response.header(HttpHeaders.ContentType, "application/ld+json")
 
             when (call.request.httpMethod){
                 HttpMethod.Head -> {

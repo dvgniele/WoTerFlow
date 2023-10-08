@@ -21,6 +21,14 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
                 //call.respond(HttpStatusCode.NotImplemented)
             }
 
+            head("") {
+                tc.retrieveAllThings(call)
+            }
+
+            head("/") {
+                tc.retrieveAllThings(call)
+            }
+
             get("/{id}") {
                 tc.retrieveThingById(call)
                 //call.respond(HttpStatusCode.NotImplemented)
@@ -40,10 +48,6 @@ class ThingDescriptionRoutesController(thingDescriptionController: ThingDescript
 
             post("/"){
                 tc.registerAnonymousThing(call)
-            }
-
-            put("") {
-                //tc.registerAnonymousThing(call)
             }
 
             put("/{id}") {
