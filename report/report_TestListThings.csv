@@ -1,0 +1,10 @@
+ID,Status,Comment
+tdd-anonymous-td-identifier,pass,passed:TestListThings/anonymous_td_id
+tdd-http-head,pass,passed:TestListThings/HEAD
+tdd-registrationinfo-vocab-created,pass,passed:TestListThings/registrationInfo_created
+tdd-registrationinfo-vocab-modified,pass,passed:TestListThings/registrationInfo_modified
+tdd-things-crudl,pass,passed:TestListThings/submit_request
+tdd-things-default-representation,pass,passed:TestListThings/content_type
+tdd-things-list-method,pass,passed:TestListThings/submit_request passed:TestListThings/status_code
+tdd-things-list-only,pass,passed:TestListThings/submit_request
+tdd-things-list-resp,pass,passed:TestListThings/content_type passed:TestListThings/payload

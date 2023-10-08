@@ -1,0 +1,10 @@
+ID,Status,Comment
+tdd-http-error-response,pass,passed:TestPatch/reject_invalid/response
+tdd-things-update-partial,pass,passed:TestPatch/replace_title/submit_request passed:TestPatch/replace_title/result passed:TestPatch/remove_description/submit_request passed:TestPatch/remove_description/result passed:TestPatch/update_properties/submit_request passed:TestPatch/update_properties/result passed:TestPatch/replace_array/submit_request passed:TestPatch/replace_array/result
+tdd-things-update-partial-contenttype,pass,passed:TestPatch/replace_title/submit_request passed:TestPatch/remove_description/submit_request passed:TestPatch/update_properties/submit_request passed:TestPatch/replace_array/submit_request
+tdd-things-update-partial-mergepatch,pass,passed:TestPatch/replace_title/result passed:TestPatch/remove_description/result passed:TestPatch/update_properties/result passed:TestPatch/replace_array/result
+tdd-things-update-partial-partialtd,pass,passed:TestPatch/replace_title/submit_request passed:TestPatch/remove_description/submit_request passed:TestPatch/update_properties/submit_request passed:TestPatch/replace_array/submit_request
+tdd-things-update-partial-resp,pass,passed:TestPatch/replace_title/status_code passed:TestPatch/remove_description/status_code passed:TestPatch/update_properties/status_code passed:TestPatch/replace_array/status_code
+tdd-validation-response,pass,passed:TestPatch/reject_invalid/validation
+tdd-validation-result,pass,passed:TestPatch/reject_invalid/validation
+tdd-validation-syntactic,pass,passed:TestPatch/reject_invalid/status
