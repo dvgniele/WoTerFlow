@@ -21,7 +21,6 @@ import java.util.*
 
 class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
-    private val utils: Utils = Utils()
     private val converter: RDFConverter = RDFConverter()
     private val validator: ThingDescriptionValidation = ThingDescriptionValidation()
 
@@ -51,18 +50,18 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
     private val ttlContextResourcePath = "data/validation/td-validation.ttl"
     private val xmlShapesPath = "data/validation/shacl.xml"
 
-    private var jsonLdContextModel: Model = utils.loadModel(jsonContext11, Lang.JSONLD11)
-    private var ttlContextModel: Model = utils.loadModel(ttlContextResourcePath, Lang.TURTLE)
-    private var xmlShapesModel: Model = utils.loadModel(xmlShapesPath, Lang.RDFXML)
+    private var jsonLdContextModel: Model = Utils.loadModel(jsonContext11, Lang.JSONLD11)
+    private var ttlContextModel: Model = Utils.loadModel(ttlContextResourcePath, Lang.TURTLE)
+    private var xmlShapesModel: Model = Utils.loadModel(xmlShapesPath, Lang.RDFXML)
 
 
     private fun refreshJsonDbItem(graphId: String) {
         try {
-            val ttlModel = utils.loadRDFModelById(rdfDataset, graphId)
+            val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
 
 
             val objNode = converter.fromRdf(ttlModel)
-            val thing = converter.toJsonLd11(utils.toJson(objNode.toString()))
+            val thing = converter.toJsonLd11(Utils.toJson(objNode.toString()))
 
             if (thingsMap.containsKey(graphId)) {
                 thingsMap.remove(graphId)
@@ -79,15 +78,15 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         rdfDataset.begin(ReadWrite.READ)
 
         try {
-            val ttlList = utils.loadRDFDatasetIntoModelList(rdfDataset)
+            val ttlList = Utils.loadRDFDatasetIntoModelList(rdfDataset)
             val things = ttlList.map { converter.toJsonLd11(converter.fromRdf(it)) }
 
             //  Clear the things map and populate it back with the updated dataset
             thingsMap.clear()
 
             things.forEach { thing ->
-                thing["@id"]?.asText()?.let { id ->
-                    thingsMap[utils.strconcat(GRAPH_PREFIX,id)] = thing
+                thing["id"]?.asText()?.let { id ->
+                    thingsMap[Utils.strconcat(GRAPH_PREFIX,id)] = thing
                 }
             }
 
@@ -106,21 +105,21 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         var query = ""
 
         var uuid = UUID.randomUUID().toString()
-        var id = utils.strconcat("urn:uuid:", uuid)
-        var graphId = utils.strconcat(GRAPH_PREFIX, id)
+        var id = Utils.strconcat("urn:uuid:", uuid)
+        var graphId = Utils.strconcat(GRAPH_PREFIX, id)
 
         try {
-            while (utils.idExists(thingsMap.keys, graphId)){
+            while (Utils.idExists(thingsMap.keys, graphId)){
                 uuid = UUID.randomUUID().toString()
-                id = utils.strconcat("urn:uuid:", uuid)
-                graphId = utils.strconcat(GRAPH_PREFIX, id)
+                id = Utils.strconcat("urn:uuid:", uuid)
+                graphId = Utils.strconcat(GRAPH_PREFIX, id)
             }
 
             td.put("@id", id)
             //td.put("id", graphId)
 
             // Checking the jsonld version and upgrading if needed
-            val tdVersion11p = utils.isJsonLd11OrGreater(td)
+            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
 
             val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
@@ -210,9 +209,9 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
         try {
             val existsAlready = checkIfThingExists(id)
-            val graphId = utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
 
-            val tdVersion11p = utils.isJsonLd11OrGreater(td)
+            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
             val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
             decorateThingDescription(tdV11)
@@ -301,7 +300,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         var query = ""
 
         try {
-            val graphId = utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
             val thing = retrieveThingById(id)
 
             if (thing != null) {
@@ -390,7 +389,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         rdfDataset.begin(ReadWrite.WRITE)
 
         try {
-            val graphId = utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
             val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
 
             println("query: $deleteQuery")
@@ -415,7 +414,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
     fun retrieveThingById(id: String): ObjectNode? {
         try {
-            val graphId = utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
             return thingsMap[graphId]
         } catch (e: Exception){
             println("${e.message}")
@@ -425,7 +424,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
     fun checkIfThingExists(id: String): Boolean {
         try {
-            val graphId = utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
             return thingsMap.containsKey(graphId)
         } catch (e: Exception){
             println("${e.message}")
@@ -446,14 +445,14 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         if (!td.has("@type")) {
             val typeArray = td.putArray("@type")
             typeArray.add("Thing")
-        } else if (!utils.hasThingType(td)) {
+        } else if (!Utils.hasThingType(td)) {
             val typeArray = td.withArray("@type")
             typeArray.add("Thing")
         }
 
         //  Add registration info: "created" if not already existing
         val registrationInfo: ObjectNode = if (!td.has("registration")) {
-            utils.jsonMapper.createObjectNode().put("created", Instant.now().toString())
+            Utils.jsonMapper.createObjectNode().put("created", Instant.now().toString())
         } else {
             td["registration"] as ObjectNode
         }

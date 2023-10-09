@@ -20,8 +20,6 @@ import utils.Utils
 
 class ThingDescriptionValidation {
 
-    val utils = Utils()
-
     fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
         try {
             val shapes = Shapes.parse(ttlModel)
@@ -29,7 +27,7 @@ class ThingDescriptionValidation {
 
             if(!validationReport.conforms()) {
                 val validationFailures = validationReport.entries.map { entry ->
-                    utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                    Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
                 }
                 return validationFailures
             }
@@ -48,7 +46,7 @@ class ThingDescriptionValidation {
 
             if(!validationReport.conforms()) {
                 val validationFailures = validationReport.entries.map { entry ->
-                    utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                    Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
                 }
                 return validationFailures
             }

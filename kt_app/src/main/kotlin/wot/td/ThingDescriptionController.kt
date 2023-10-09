@@ -20,7 +20,6 @@ import utils.Utils
 class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDescriptionService) {
 
     val ts = service
-    private var utils: Utils = Utils()
 
     suspend fun retrieveAllThings(call: ApplicationCall) {
         val request = call.request
@@ -73,7 +72,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
     }
 
     private fun generateCollectionResponse(call: ApplicationCall, count: Int, offset: Int, limit: Int): ObjectNode {
-        return utils.jsonMapper.createObjectNode().apply {
+        return Utils.jsonMapper.createObjectNode().apply {
             put("@context", "https://w3c.github.io/wot-discovery/context/discovery-context.jsonld")
             put("@type", "ThingCollection")
             put("total", count)
@@ -91,7 +90,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
 
     suspend fun retrieveThingById(call: ApplicationCall) {
         try {
-            val idValid = utils.hasValidId(call.parameters["id"])
+            val idValid = Utils.hasValidId(call.parameters["id"])
             val id = idValid.substringAfterLast("h")
 
             call.response.header(HttpHeaders.ContentType, "application/ld+json")
@@ -112,7 +111,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
 
                     val retrievedThing = ts.retrieveThingById(id)
 
-                    val json = utils.jsonMapper.writeValueAsString(retrievedThing)
+                    val json = Utils.jsonMapper.writeValueAsString(retrievedThing)
                     call.respondText(json, ContentType.Application.Json, HttpStatusCode.OK)
                 }
             }
@@ -129,14 +128,14 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
         try {
             val request = call.request
 
-            if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
+            if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
                 throw ThingException(
                     "ContentType not supported. application/td+json required",
                     HttpStatusCode.UnsupportedMediaType
                 )
             }
 
-            val thing = utils.hasBody(call.receive())
+            val thing = Utils.hasBody(call.receive())
 
             if (thing != null) {
                 val requestBodyId: String? = thing.get("@id")?.takeIf { it.isTextual }?.asText()
@@ -201,18 +200,18 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
 
     suspend fun updateThing(call: ApplicationCall) {
         try {
-            val id = utils.hasValidId(call.parameters["id"])
+            val id = Utils.hasValidId(call.parameters["id"])
             val request = call.request
 
 
-            if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
+            if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
                 throw ThingException(
                     "ContentType not supported. application/td+json required",
                     HttpStatusCode.UnsupportedMediaType
                 )
             }
 
-            val thing = utils.hasBody(call.receive())
+            val thing = Utils.hasBody(call.receive())
 
             if (thing != null) {
                 val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
@@ -285,17 +284,17 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
 
     suspend fun patchThing(call: ApplicationCall) {
         try {
-            val id = utils.hasValidId(call.parameters["id"])
+            val id = Utils.hasValidId(call.parameters["id"])
             val request = call.request
 
-            if (!utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
+            if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
                 throw ThingException(
                     "ContentType not supported. application/td+json required",
                     HttpStatusCode.UnsupportedMediaType
                 )
             }
 
-            val thing = utils.hasBody(call.receive())
+            val thing = Utils.hasBody(call.receive())
 
             if (thing != null) {
                 val thingId = ts.patchThing(thing, id)

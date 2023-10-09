@@ -34,8 +34,6 @@ class RDFConverter {
     val contextV10 = "https://www.w3.org/2019/wot/td/v1"
     val contextV11 = "https://www.w3.org/2022/wot/td/v1.1"
 
-    val utils: Utils = Utils()
-
     var contextV10data: String
     var contextV11data: String
 
@@ -45,8 +43,8 @@ class RDFConverter {
     val options11: JsonLdOptions = JsonLdOptions()
 
     init {
-        contextV10data = utils.downloadFileAsString(contextV10)
-        contextV11data = utils.downloadFileAsString(contextV11)
+        contextV10data = Utils.downloadFileAsString(contextV10)
+        contextV11data = Utils.downloadFileAsString(contextV11)
 
         contextV10Document = JsonDocument.of(contextV10data.reader())
         contextV11Document = JsonDocument.of(contextV11data.reader())
@@ -502,7 +500,7 @@ class RDFConverter {
 
                 }
                 else {
-                    node.put(utils.strconcat("@", predicateName), resourceURI)
+                    node.put(Utils.strconcat("@", predicateName), resourceURI)
                 }
             }
         }
