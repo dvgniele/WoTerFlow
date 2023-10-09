@@ -20,44 +20,46 @@ import utils.Utils
 
 class ThingDescriptionValidation {
 
-    fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
-        try {
-            val shapes = Shapes.parse(ttlModel)
-            val validationReport: ValidationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
+    companion object {
 
-            if(!validationReport.conforms()) {
-                val validationFailures = validationReport.entries.map { entry ->
-                    Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+        fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
+            try {
+                val shapes = Shapes.parse(ttlModel)
+                val validationReport: ValidationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
+
+                if (!validationReport.conforms()) {
+                    val validationFailures = validationReport.entries.map { entry ->
+                        Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                    }
+                    return validationFailures
                 }
-                return validationFailures
+
+                return emptyList()
+            } catch (e: Exception) {
+                throw Exception("Error performing Semantic Validation: ${e.message}")
             }
-
-            return emptyList()
-        } catch (e: Exception) {
-            throw Exception("Error performing Semantic Validation: ${e.message}")
         }
-    }
 
-    fun validateSyntactic(tdModel: Model, xmlModel: Model): List<String> {
-        try {
-            val shapes = Shapes.parse(xmlModel)
+        fun validateSyntactic(tdModel: Model, xmlModel: Model): List<String> {
+            try {
+                val shapes = Shapes.parse(xmlModel)
 
-            val validationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
+                val validationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
 
-            if(!validationReport.conforms()) {
-                val validationFailures = validationReport.entries.map { entry ->
-                    Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                if (!validationReport.conforms()) {
+                    val validationFailures = validationReport.entries.map { entry ->
+                        Utils.strconcat("code: ", entry.focusNode().toString(), "\nmessage: ", entry.toString())
+                    }
+                    return validationFailures
                 }
-                return validationFailures
+
+                return emptyList()
+            } catch (e: Exception) {
+                throw Exception("Error performing Syntactic Validation: ${e.message}")
             }
-
-            return emptyList()
-        } catch (e: Exception) {
-            throw Exception("Error performing Syntactic Validation: ${e.message}")
         }
-    }
 
-    /* to verify
+        /* to verify
     fun validateSemantic(tdModel: Model, contextModel: Model): Boolean {
 
         val validationResults = mutableListOf<Boolean>()
@@ -71,4 +73,6 @@ class ThingDescriptionValidation {
 
     }
      */
+
+    }
 }

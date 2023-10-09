@@ -21,10 +21,6 @@ import java.util.*
 
 class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
-    private val converter: RDFConverter = RDFConverter()
-    private val validator: ThingDescriptionValidation = ThingDescriptionValidation()
-
-
     private val BASE_URI = "http://example.com/ktwot/"
 
     //private val GRAPH_PREFIX = BASE_URI + "graph/"
@@ -60,8 +56,8 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
 
 
-            val objNode = converter.fromRdf(ttlModel)
-            val thing = converter.toJsonLd11(Utils.toJson(objNode.toString()))
+            val objNode = RDFConverter.fromRdf(ttlModel)
+            val thing = RDFConverter.toJsonLd11(Utils.toJson(objNode.toString()))
 
             if (thingsMap.containsKey(graphId)) {
                 thingsMap.remove(graphId)
@@ -79,7 +75,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
         try {
             val ttlList = Utils.loadRDFDatasetIntoModelList(rdfDataset)
-            val things = ttlList.map { converter.toJsonLd11(converter.fromRdf(it)) }
+            val things = ttlList.map { RDFConverter.toJsonLd11(RDFConverter.fromRdf(it)) }
 
             //  Clear the things map and populate it back with the updated dataset
             thingsMap.clear()
@@ -121,15 +117,15 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             // Checking the jsonld version and upgrading if needed
             val tdVersion11p = Utils.isJsonLd11OrGreater(td)
 
-            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+            val tdV11 = if (!tdVersion11p) RDFConverter.toJsonLd11(td) else td
 
             // JsonLd decoration with missing fields
             decorateThingDescription(tdV11)
 
-            val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toString(), Lang.JSONLD11)
+            val jsonRdfModel = RDFConverter.convertJsonLdToRdf(tdV11.toString(), Lang.JSONLD11)
 
             //  Performing Syntactic Validation
-            val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
+            val syntacticValidationFailures = ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
             if (syntacticValidationFailures.isNotEmpty()) {
                 val validationErrors = syntacticValidationFailures.map {
@@ -142,7 +138,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
             //  Performing Semantic Validation
 
-            val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
+            val semanticValidationFailures = ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
             if (semanticValidationFailures.isNotEmpty()) {
                 val validationErrors = semanticValidationFailures.map {
@@ -155,7 +151,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
 
             // Query preparation for RDF data storing
-            val rdfTriplesString = converter.toString(jsonRdfModel)
+            val rdfTriplesString = RDFConverter.toString(jsonRdfModel)
             query = """
             INSERT DATA {
                 GRAPH <$graphId> {
@@ -212,14 +208,14 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             val graphId = Utils.strconcat(GRAPH_PREFIX, id)
 
             val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+            val tdV11 = if (!tdVersion11p) RDFConverter.toJsonLd11(td) else td
 
             decorateThingDescription(tdV11)
 
-            val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+            val jsonRdfModel = RDFConverter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
 
             //  Performing Syntactic Validation
-            val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
+            val syntacticValidationFailures = ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
             if (syntacticValidationFailures.isNotEmpty()) {
                 val validationErrors = syntacticValidationFailures.map {
@@ -232,7 +228,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
             //  Performing Semantic Validation
 
-            val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
+            val semanticValidationFailures = ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
             if (semanticValidationFailures.isNotEmpty()) {
                 val validationErrors = semanticValidationFailures.map {
@@ -244,7 +240,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             }
 
             // Query preparation for RDF data storing
-            val rdfTriplesString = converter.toString(jsonRdfModel)
+            val rdfTriplesString = RDFConverter.toString(jsonRdfModel)
             query = """
             DELETE WHERE {
                 GRAPH <$graphId> {
@@ -310,10 +306,10 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
                 decorateThingDescription(thing)
 
-                val jsonRdfModel = converter.convertJsonLdToRdf(thing.toString(), Lang.JSONLD11)
+                val jsonRdfModel = RDFConverter.convertJsonLdToRdf(thing.toString(), Lang.JSONLD11)
 
                 //  Performing Syntactic Validation
-                val syntacticValidationFailures = validator.validateSyntactic(jsonRdfModel, xmlShapesModel)
+                val syntacticValidationFailures = ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
 
                 if (syntacticValidationFailures.isNotEmpty()) {
                     val validationErrors = syntacticValidationFailures.map {
@@ -326,7 +322,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
 
                 //  Performing Semantic Validation
 
-                val semanticValidationFailures = validator.validateSemantic(jsonRdfModel, ttlContextModel)
+                val semanticValidationFailures = ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
                 if (semanticValidationFailures.isNotEmpty()) {
                     val validationErrors = semanticValidationFailures.map {
@@ -338,7 +334,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
                 }
 
                 // Query preparation for RDF data storing
-                val rdfTriplesString = converter.toString(jsonRdfModel)
+                val rdfTriplesString = RDFConverter.toString(jsonRdfModel)
                 query = """
                 DELETE WHERE {
                     GRAPH <$graphId> {
