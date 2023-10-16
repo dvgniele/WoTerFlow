@@ -1,85 +1,87 @@
 package wot.directory
 
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import wot.search.SparqlController
 import wot.td.ThingDescriptionController
 
-class DirectoryRoutesController(thingDescriptionController: ThingDescriptionController) {
-    val tc = thingDescriptionController
+class DirectoryRoutesController(directory: Directory) {
+    val directory = directory
 
     fun setupRoutes(route: Route) {
         route.route("/things") {
 
             get(""){
-                tc.retrieveAllThings(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.retrieveAllThings(call)
             }
 
             get("/"){
-                tc.retrieveAllThings(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.retrieveAllThings(call)
             }
 
             head("") {
-                tc.retrieveAllThings(call)
+                directory.thingController.retrieveAllThings(call)
             }
 
             head("/") {
-                tc.retrieveAllThings(call)
+                directory.thingController.retrieveAllThings(call)
             }
 
             get("/{id}") {
-                tc.retrieveThingById(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.retrieveThingById(call)
             }
 
             get("/http://example.com/ktwot/graph/{id}") {
-                tc.retrieveThingById(call)
+                directory.thingController.retrieveThingById(call)
             }
 
             head("/{id}"){
-                tc.retrieveThingById(call)
+                directory.thingController.retrieveThingById(call)
             }
 
             post(""){
-                tc.registerAnonymousThing(call)
+                directory.thingController.registerAnonymousThing(call)
             }
 
             post("/"){
-                tc.registerAnonymousThing(call)
+                directory.thingController.registerAnonymousThing(call)
             }
 
             put("/{id}") {
-                tc.updateThing(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.updateThing(call)
             }
 
             patch("/{id}") {
-                tc.patchThing(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.patchThing(call)
             }
 
             delete("/{id}") {
-                tc.deleteThing(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.deleteThing(call)
             }
 
             delete("/http://example.com/ktwot/graph/{id}") {
-                tc.deleteThing(call)
-                //call.respond(HttpStatusCode.NotImplemented)
+                directory.thingController.deleteThing(call)
             }
         }
 
         route.route("/search") {
 
+            head("/sparql") {
+                call.respond(HttpStatusCode.OK)
+            }
+
             get("/sparql") {
-                SparqlController.executeSparqlQuery(call)
+                SparqlController.executeSparqlQuery(call, directory.db)
+            }
+
+            get("/sparql/") {
+                SparqlController.executeSparqlQuery(call, directory.db)
             }
 
             post("/sparql") {
-
+                SparqlController.executeSparqlQuery(call, directory.db)
             }
         }
 

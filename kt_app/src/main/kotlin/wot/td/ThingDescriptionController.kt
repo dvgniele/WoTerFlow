@@ -17,7 +17,7 @@ import org.apache.jena.shared.NotFoundException
 import org.mapdb.DB
 import utils.Utils
 
-class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDescriptionService) {
+class ThingDescriptionController(service: ThingDescriptionService) {
 
     val ts = service
 
@@ -93,7 +93,7 @@ class ThingDescriptionController(dbRdf: Dataset, dbJson: DB?, service: ThingDesc
             val idValid = Utils.hasValidId(call.parameters["id"])
             val id = idValid.substringAfterLast("h")
 
-            call.response.header(HttpHeaders.ContentType, "application/ld+json")
+            call.response.header(HttpHeaders.ContentType, "application/td+json")
 
             when (call.request.httpMethod){
                 HttpMethod.Head -> {

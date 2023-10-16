@@ -15,11 +15,12 @@ import org.apache.jena.update.UpdateProcessor
 import org.mapdb.DB
 import utils.RDFConverter
 import utils.Utils
+import wot.search.SparqlService
 import java.time.Instant
 import java.util.*
 
 
-class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
+class ThingDescriptionService(dbRdf: Dataset) {
 
     private val BASE_URI = "http://example.com/ktwot/"
 
@@ -55,21 +56,19 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
         try {
             val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
 
+            if (!ttlModel.isEmpty){
+                val objNode = RDFConverter.fromRdf(ttlModel)
+                val thing = RDFConverter.toJsonLd11(Utils.toJson(objNode.toString()))
 
-            val objNode = RDFConverter.fromRdf(ttlModel)
-            val thing = RDFConverter.toJsonLd11(Utils.toJson(objNode.toString()))
-
-            if (thingsMap.containsKey(graphId)) {
+                thingsMap[graphId] = thing
+            } else {
                 thingsMap.remove(graphId)
             }
-
-            thingsMap[graphId] = thing
         } catch (e: Exception) {
             throw ThingException("Error refreshing the JsonDb item with id: $graphId: ${e.message}")
-        } finally {
-
         }
     }
+
     fun refreshJsonDb() {
         rdfDataset.begin(ReadWrite.READ)
 
@@ -163,9 +162,7 @@ class ThingDescriptionService(dbRdf: Dataset, dbJson: DB?) {
             println("query:\n$query")
 
             //  Execute query
-            val update = UpdateFactory.create(query)
-            val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
-            updateExecution.execute()
+            SparqlService.update(query, rdfDataset)
 
             refreshJsonDbItem(graphId)
 
