@@ -1,4 +1,4 @@
-package wot.search
+package wot.search.sparql
 
 import exceptions.UnsupportedSparqlQueryException
 import org.apache.jena.query.*
@@ -10,14 +10,8 @@ import utils.RDFConverter
 import utils.Utils
 import java.io.ByteArrayOutputStream
 
-class SparqlService() {
-
+class SparqlService {
     companion object {
-
-        fun lookup(str: String): ResultsFormat? {
-            return ResultsFormat.lookup(str)
-        }
-
         fun executeQuery(query: String, format: ResultsFormat, dataset: Dataset): ByteArrayOutputStream {
             dataset.begin(TxnType.WRITE)
 
