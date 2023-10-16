@@ -4,11 +4,10 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import wot.search.SparqlController
-import wot.td.ThingDescriptionController
+import wot.search.jsonpath.JsonPathController
+import wot.search.sparql.SparqlController
 
-class DirectoryRoutesController(directory: Directory) {
-    val directory = directory
+class DirectoryRoutesController(private val directory: Directory) {
 
     fun setupRoutes(route: Route) {
         route.route("/things") {
@@ -82,6 +81,10 @@ class DirectoryRoutesController(directory: Directory) {
 
             post("/sparql") {
                 SparqlController.executeSparqlQuery(call, directory.db)
+            }
+
+            get("/jsonpath") {
+                JsonPathController.executeJsonPathQuery(call, directory.jsonMap)
             }
         }
 

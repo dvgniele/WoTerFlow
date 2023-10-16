@@ -66,10 +66,8 @@ dependencies {
     // https://mvnrepository.com/artifact/com.apicatalog/titanium-json-ld
     implementation("com.apicatalog:titanium-json-ld:1.3.2")
 
-
-
     // https://mvnrepository.com/artifact/org.mapdb/mapdb
-    implementation("org.mapdb:mapdb:3.0.9")
+    //implementation("org.mapdb:mapdb:3.0.9")
 
 
 
@@ -90,7 +88,9 @@ dependencies {
     implementation("io.ktor:ktor-serialization-jackson:$ktor_version")
 
 
-
+    // JSONPath
+    // https://mvnrepository.com/artifact/com.jayway.jsonpath/json-path
+    implementation("com.jayway.jsonpath:json-path:2.8.0")
 
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
