@@ -12,9 +12,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import org.apache.jena.atlas.lib.NotImplemented
-import org.apache.jena.query.Dataset
 import org.apache.jena.shared.NotFoundException
-import org.mapdb.DB
 import utils.Utils
 
 class ThingDescriptionController(service: ThingDescriptionService) {

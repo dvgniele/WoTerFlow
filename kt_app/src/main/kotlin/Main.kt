@@ -1,6 +1,7 @@
 
 //import org.slf4j.event.Level
 
+import com.fasterxml.jackson.databind.node.ObjectNode
 import io.ktor.serialization.jackson.*
 import io.ktor.server.application.*
 import io.ktor.server.cio.*
@@ -19,7 +20,6 @@ import org.apache.jena.tdb2.TDB2Factory
 import org.slf4j.event.Level
 import wot.directory.Directory
 import wot.directory.DirectoryRoutesController
-import wot.search.SparqlController
 import wot.td.ThingDescriptionController
 import wot.td.ThingDescriptionService
 
@@ -38,6 +38,8 @@ fun main(args: Array<String>) {
         .transactionEnable()
         .make()
      */
+
+    val thingsMap: MutableMap<String, ObjectNode> = mutableMapOf()
 
     val model: Model = ModelFactory.createDefaultModel()
     model.read("data/tdb-data/turtle.ttl")
@@ -67,10 +69,10 @@ fun main(args: Array<String>) {
             jackson()
         }
 
-        val ts = ThingDescriptionService(rdf_db)
+        val ts = ThingDescriptionService(rdf_db, thingsMap)
         val tc = ThingDescriptionController(ts)
 
-        val directory = Directory(rdf_db, tc)
+        val directory = Directory(rdf_db, thingsMap, tc)
 
         ts.refreshJsonDb()
         //tc.initializeDatabaseIfNeeded()

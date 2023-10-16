@@ -12,15 +12,14 @@ import org.apache.jena.riot.Lang
 import org.apache.jena.update.UpdateExecutionFactory
 import org.apache.jena.update.UpdateFactory
 import org.apache.jena.update.UpdateProcessor
-import org.mapdb.DB
 import utils.RDFConverter
 import utils.Utils
-import wot.search.SparqlService
+import wot.search.sparql.SparqlService
 import java.time.Instant
 import java.util.*
 
 
-class ThingDescriptionService(dbRdf: Dataset) {
+class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<String, ObjectNode>) {
 
     private val BASE_URI = "http://example.com/ktwot/"
 
@@ -35,8 +34,6 @@ class ThingDescriptionService(dbRdf: Dataset) {
         .valueSerializer(ObjectNodeSerializer())
         .createOrOpen()
      */
-
-    private val thingsMap: MutableMap<String, ObjectNode> = mutableMapOf()
 
     val jsonContextUrl10 = "https://www.w3.org/2019/wot/td/v1"
     val jsonContextUrl11 = "https://www.w3.org/2022/wot/td/v1.1"
