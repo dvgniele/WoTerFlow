@@ -1,0 +1,7 @@
+ID,Status,Comment
+tdd-http-head,pass,passed:TestSPARQL/HEAD
+tdd-search-sparql,pass,passed:TestSPARQL/search_using_GET passed:TestSPARQL/search_using_POST passed:TestSPARQL/federated_search_using_GET
+tdd-search-sparql-federation,pass,passed:TestSPARQL/federated_search_using_GET
+tdd-search-sparql-method-get,pass,passed:TestSPARQL/search_using_GET passed:TestSPARQL/federated_search_using_GET
+tdd-search-sparql-method-post,pass,passed:TestSPARQL/search_using_POST
+tdd-search-sparql-resp-select-ask,pass,passed:TestSPARQL/search_using_GET passed:TestSPARQL/search_using_POST passed:TestSPARQL/federated_search_using_GET
