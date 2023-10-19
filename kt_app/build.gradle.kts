@@ -92,6 +92,14 @@ dependencies {
     // https://mvnrepository.com/artifact/com.jayway.jsonpath/json-path
     implementation("com.jayway.jsonpath:json-path:2.8.0")
 
+    // XPath
+    // https://mvnrepository.com/artifact/net.sf.saxon/Saxon-HE
+    implementation("net.sf.saxon:Saxon-HE:12.3")
+
+    // https://mvnrepository.com/artifact/com.fasterxml.jackson.dataformat/jackson-dataformat-xml
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.3")
+
+
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson
     //implementation("com.google.code.gson:gson:2.10.1")

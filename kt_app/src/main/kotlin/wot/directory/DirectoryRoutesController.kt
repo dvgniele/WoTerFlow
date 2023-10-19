@@ -6,6 +6,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import wot.search.jsonpath.JsonPathController
 import wot.search.sparql.SparqlController
+import wot.search.xpath.XPathController
 
 class DirectoryRoutesController(private val directory: Directory) {
 
@@ -85,6 +86,10 @@ class DirectoryRoutesController(private val directory: Directory) {
 
             get("/jsonpath") {
                 JsonPathController.executeJsonPathQuery(call, directory.jsonMap)
+            }
+
+            get("/xpath") {
+                XPathController.executeXPathQuery(call, directory.jsonMap)
             }
         }
 
