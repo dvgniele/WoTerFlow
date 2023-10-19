@@ -11,11 +11,11 @@ class JsonPathService {
             val jsonPathConfig = Configuration.defaultConfiguration()
 
             val matchingTDs = map.values.filter { td ->
-                val mathingNodes = JsonPath.using(jsonPathConfig)
+                val matchingNodes = JsonPath.using(jsonPathConfig)
                     .parse(td.toString())
                     .read(query) as List<ObjectNode>
 
-                mathingNodes.isNotEmpty()
+                matchingNodes.isNotEmpty()
             }
 
             return matchingTDs
