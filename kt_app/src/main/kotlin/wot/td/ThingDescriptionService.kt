@@ -14,18 +14,14 @@ import org.apache.jena.update.UpdateFactory
 import org.apache.jena.update.UpdateProcessor
 import utils.RDFConverter
 import utils.Utils
+import wot.directory.Directory
+import wot.directory.DirectoryConfig
 import wot.search.sparql.SparqlService
 import java.time.Instant
 import java.util.*
 
 
 class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<String, ObjectNode>) {
-
-    private val BASE_URI = "http://example.com/ktwot/"
-
-    //private val GRAPH_PREFIX = BASE_URI + "graph/"
-    private val GRAPH_PREFIX = BASE_URI + "graph/"
-
     private val rdfDataset: Dataset = dbRdf
     /*
     private val jsonDB: DB = dbJson
@@ -78,7 +74,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
             things.forEach { thing ->
                 thing["id"]?.asText()?.let { id ->
-                    thingsMap[Utils.strconcat(GRAPH_PREFIX,id)] = thing
+                    thingsMap[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX,id)] = thing
                 }
             }
 
@@ -98,13 +94,13 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
         var uuid = UUID.randomUUID().toString()
         var id = Utils.strconcat("urn:uuid:", uuid)
-        var graphId = Utils.strconcat(GRAPH_PREFIX, id)
+        var graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
         try {
             while (Utils.idExists(thingsMap.keys, graphId)){
                 uuid = UUID.randomUUID().toString()
                 id = Utils.strconcat("urn:uuid:", uuid)
-                graphId = Utils.strconcat(GRAPH_PREFIX, id)
+                graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             }
 
             td.put("@id", id)
@@ -199,7 +195,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
         try {
             val existsAlready = checkIfThingExists(id)
-            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
             val tdVersion11p = Utils.isJsonLd11OrGreater(td)
             val tdV11 = if (!tdVersion11p) RDFConverter.toJsonLd11(td) else td
@@ -290,7 +286,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         var query = ""
 
         try {
-            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             val thing = retrieveThingById(id)
 
             if (thing != null) {
@@ -379,7 +375,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         rdfDataset.begin(ReadWrite.WRITE)
 
         try {
-            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
 
             println("query: $deleteQuery")
@@ -404,7 +400,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
     fun retrieveThingById(id: String): ObjectNode? {
         try {
-            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             return thingsMap[graphId]
         } catch (e: Exception){
             println("${e.message}")
@@ -414,7 +410,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
     fun checkIfThingExists(id: String): Boolean {
         try {
-            val graphId = Utils.strconcat(GRAPH_PREFIX, id)
+            val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             return thingsMap.containsKey(graphId)
         } catch (e: Exception){
             println("${e.message}")
