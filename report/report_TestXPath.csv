@@ -1,0 +1,5 @@
+ID,Status,Comment
+tdd-search-xpath,pass,passed:TestXPath/filter/submit_request passed:TestXPath/reject_bad_query/submit_request
+tdd-search-xpath-method,pass,passed:TestXPath/filter/submit_request passed:TestXPath/reject_bad_query/submit_request
+tdd-search-xpath-parameter,pass,passed:TestXPath/filter/submit_request passed:TestXPath/reject_bad_query/submit_request
+tdd-search-xpath-response,pass,passed:TestXPath/filter/status_code passed:TestXPath/filter/content_type passed:TestXPath/filter/payload passed:TestXPath/reject_bad_query/status_code
