@@ -6,7 +6,7 @@ plugins {
 group = "io.github.dvgniele"
 version = "1.0-SNAPSHOT"
 
-val ktor_version = "2.3.3"
+val ktor_version = "2.3.5"
 val jena_version = "4.8.0"
 
 repositories {
@@ -76,7 +76,9 @@ dependencies {
     implementation("io.ktor:ktor-server-core:$ktor_version")
 
     // https://mvnrepository.com/artifact/io.ktor/ktor-server-cio
+    implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation("io.ktor:ktor-server-cio:$ktor_version")
+
 
     // https://mvnrepository.com/artifact/io.ktor/ktor-server-call-logging
     implementation("io.ktor:ktor-server-call-logging:$ktor_version")
@@ -86,6 +88,7 @@ dependencies {
 
     // https://mvnrepository.com/artifact/io.ktor/ktor-serialization-jackson
     implementation("io.ktor:ktor-serialization-jackson:$ktor_version")
+
 
 
     // JSONPath
@@ -98,7 +101,6 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.fasterxml.jackson.dataformat/jackson-dataformat-xml
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.3")
-
 
 
     // https://mvnrepository.com/artifact/com.google.code.gson/gson

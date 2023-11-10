@@ -1,7 +1,0 @@
-version: '3.7'
-services:
-  kt_app:
-    container_name: kt_app
-    build: ./kt_app
-    ports:
-      - '3017:3017'
