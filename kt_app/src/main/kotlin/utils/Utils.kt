@@ -161,7 +161,7 @@ class Utils {
             if (call.parameters.contains("diff")) {
                 call.respondText(
                     text = "Request parameter 'diff' is not supported on this route.",
-                    status = HttpStatusCode.BadRequest
+                    status = HttpStatusCode.NotImplemented
                 )
                 return true
             }

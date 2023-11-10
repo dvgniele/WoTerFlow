@@ -118,7 +118,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 // JsonLd decoration with missing fields
                 decorateThingDescription(tdV11)
 
-                val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toString(), Lang.JSONLD11)
+                val jsonRdfModel = converter.toRdf(tdV11.toString(), Lang.JSONLD11)
 
                 //  Performing Syntactic Validation
                 val syntacticValidationFailures =
@@ -215,7 +215,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
                 decorateThingDescription(tdV11)
 
-                val jsonRdfModel = converter.convertJsonLdToRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+                val jsonRdfModel = converter.toRdf(tdV11.toPrettyString(), Lang.JSONLD11)
 
                 //  Performing Syntactic Validation
                 val syntacticValidationFailures =
@@ -315,7 +315,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
                     decorateThingDescription(thing)
 
-                    val jsonRdfModel = converter.convertJsonLdToRdf(thing.toString(), Lang.JSONLD11)
+                    val jsonRdfModel = converter.toRdf(thing.toString(), Lang.JSONLD11)
 
                     //  Performing Syntactic Validation
                     val syntacticValidationFailures =

@@ -228,11 +228,11 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                 call.response.header(HttpHeaders.Location, thingId)
 
                 if (!thingExists) {
-                    call.respond(HttpStatusCode.NoContent)
+                    call.respond(HttpStatusCode.Created)
                     eventController.notify(EventType.THING_CREATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
                 }
                 else {
-                    call.respond(HttpStatusCode.Created, "Thing updated successfully")
+                    call.respond(HttpStatusCode.NoContent)
                     eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
                 }
 
