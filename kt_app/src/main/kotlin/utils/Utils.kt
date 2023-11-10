@@ -3,23 +3,28 @@ package utils
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
-import com.fasterxml.jackson.databind.node.DecimalNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import exceptions.ThingException
 import io.ktor.http.*
-import jakarta.json.JsonObject
+import io.ktor.server.application.*
+import io.ktor.server.response.*
+import io.ktor.util.cio.*
+import io.ktor.utils.io.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.merge
 import org.apache.jena.query.Dataset
 import org.apache.jena.rdf.model.Model
 import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
 import org.apache.jena.riot.RDFDataMgr
-import java.io.BufferedReader
-import java.io.File
-import java.io.InputStream
-import java.io.InputStreamReader
+import wot.events.EventType
+import wot.events.SseEvent
+import java.io.*
 import java.net.URL
+import kotlin.time.Duration.Companion.seconds
 
 class Utils {
     companion object {
@@ -28,16 +33,16 @@ class Utils {
         fun downloadFileAsString(uri: String): String {
             val url = URL(uri)
             val connection = url.openConnection()
+            connection.setRequestProperty("Content-Type", "application/json; utf-8")
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0")
             val reader = BufferedReader(InputStreamReader(connection.getInputStream()))
             val content = StringBuilder()
             var line: String?
 
-            try {
+            reader.use { reader ->
                 while (reader.readLine().also { line = it } != null) {
                     content.append(line).append("\n")
                 }
-            } finally {
-                reader.close()
             }
 
             return content.toString()
@@ -150,6 +155,17 @@ class Utils {
             val objectMapper = ObjectMapper()
             return objectMapper.readValue<ObjectNode>(td)
 
+        }
+
+        suspend fun rejectedDiff(call: ApplicationCall): Boolean {
+            if (call.parameters.contains("diff")) {
+                call.respondText(
+                    text = "Request parameter 'diff' is not supported on this route.",
+                    status = HttpStatusCode.BadRequest
+                )
+                return true
+            }
+            return false
         }
     }
 }
