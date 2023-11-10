@@ -14,8 +14,10 @@ import io.ktor.server.response.*
 import org.apache.jena.atlas.lib.NotImplemented
 import org.apache.jena.shared.NotFoundException
 import utils.Utils
+import wot.events.EventController
+import wot.events.EventType
 
-class ThingDescriptionController(service: ThingDescriptionService) {
+class ThingDescriptionController(service: ThingDescriptionService, private val eventController: EventController) {
 
     val ts = service
 
@@ -143,17 +145,17 @@ class ThingDescriptionController(service: ThingDescriptionService) {
                     throw ThingException("The thing must NOT have a 'id' or '@id' property")
                 }
 
-                if (!thing.has("title")) {
-                    //throw ThingException("The thing must contain the title field.")
-                }
+                val pair = ts.insertAnonymousThing(thing)
+                //eventsController.eventSystem.igniteEvent(pair.first, EventType.THING_CREATED, pair.second)
 
-                val thingId = ts.insertAnonymousThing(thing)
-                call.response.header(HttpHeaders.Location, thingId)
+                call.response.header(HttpHeaders.Location, pair.first)
 
 
                 //val json = utils.jsonMapper.writeValueAsString(thing)
                 //call.respondText(json, ContentType.Application.Json, HttpStatusCode.Created)
                 call.respond(HttpStatusCode.Created)
+
+                eventController.notify(EventType.THING_CREATED, "{\n\"id\": \"${pair.first}\"\n}")
             }
 
             //call.respond(HttpStatusCode.Created, "Anonymous Thing created successfully")
@@ -219,20 +221,21 @@ class ThingDescriptionController(service: ThingDescriptionService) {
                     //throw ThingException("The thing must NOT have a 'id' or '@id' property")
                 }
 
-                if (!thing.has("title")) {
-                    //throw ThingException("The thing must contain the title field.")
-                }
-
                 val thingUpdate = ts.updateThing(thing)
                 val thingId = thingUpdate.first
                 val thingExists = thingUpdate.second
 
                 call.response.header(HttpHeaders.Location, thingId)
 
-                if (thingExists)
+                if (!thingExists) {
                     call.respond(HttpStatusCode.NoContent)
-                else
+                    eventController.notify(EventType.THING_CREATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
+                }
+                else {
                     call.respond(HttpStatusCode.Created, "Thing updated successfully")
+                    eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
+                }
+
             }
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(
@@ -299,6 +302,7 @@ class ThingDescriptionController(service: ThingDescriptionService) {
                 call.response.header(HttpHeaders.Location, thingId)
 
                 call.respond(HttpStatusCode.NoContent)
+                eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingId}\" }")
             }
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(
@@ -354,6 +358,7 @@ class ThingDescriptionController(service: ThingDescriptionService) {
         try {
             ts.deleteThingById(id)
             call.respond(HttpStatusCode.NoContent)
+            eventController.notify(EventType.THING_DELETED, "{ \n\"id\": \"${id}\" }")
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(
                 title = "Bad Request",
