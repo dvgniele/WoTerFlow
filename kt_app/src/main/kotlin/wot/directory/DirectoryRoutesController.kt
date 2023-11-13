@@ -2,17 +2,12 @@ package wot.directory
 
 import io.ktor.http.*
 import io.ktor.server.application.*
-import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.flow.*
 import utils.SSEUtils.Companion.respondSse
 import utils.Utils
 import wot.events.EventType
 
-
-import wot.events.SseEvent
 import wot.search.jsonpath.JsonPathController
 import wot.search.sparql.SparqlController
 import wot.search.xpath.XPathController

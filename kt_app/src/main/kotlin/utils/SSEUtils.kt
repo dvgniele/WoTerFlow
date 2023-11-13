@@ -24,10 +24,12 @@ class SSEUtils {
 
             try {
                 respondBytesWriter(contentType = ContentType.Text.EventStream) {
-/*                    if (eventsList.isEmpty()) {
+/*
+                    if (eventsList.isEmpty()) {
                         writeStringUtf8("\n")
                         flush()
-                    }*/
+                    }
+*/
 
                     eventsList.forEach { event ->
                         writeEvent(event)
@@ -42,7 +44,7 @@ class SSEUtils {
                         }
                 }
             } catch (e: ChannelWriteException) {
-                println("${e.message}")
+                throw InternalError(e.message)
             }
         }
 
@@ -54,7 +56,6 @@ class SSEUtils {
                 append("\n")
             }
             writeStringUtf8(eventString)
-            println(eventString)
             flush()
         }
     }

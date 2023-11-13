@@ -14,6 +14,7 @@ import io.ktor.server.response.*
 import org.apache.jena.atlas.lib.NotImplemented
 import org.apache.jena.shared.NotFoundException
 import utils.Utils
+import wot.directory.DirectoryConfig
 import wot.events.EventController
 import wot.events.EventType
 
@@ -23,12 +24,6 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
 
     suspend fun retrieveAllThings(call: ApplicationCall) {
         val request = call.request
-
-        /*
-                if (!utils.hasJsonContent(request.header(HttpHeaders.Accept))) {
-                    call.respond(HttpStatusCode.BadRequest, "Unsupported content type")
-                }
-        */
 
         val responseFormat = request.queryParameters["format"]
         val limit = request.queryParameters["limit"]?.toInt() ?: 20
@@ -73,7 +68,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
 
     private fun generateCollectionResponse(call: ApplicationCall, count: Int, offset: Int, limit: Int): ObjectNode {
         return Utils.jsonMapper.createObjectNode().apply {
-            put("@context", "https://w3c.github.io/wot-discovery/context/discovery-context.jsonld")
+            put("@context", DirectoryConfig.contextV11)
             put("@type", "ThingCollection")
             put("total", count)
             put("@id", "/things?offset=$offset&limit=$limit&format=collection")
@@ -102,13 +97,6 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                     call.respond(if (retrievedThing) HttpStatusCode.OK else HttpStatusCode.NotFound)
                 }
                 HttpMethod.Get -> {
-                    /*
-                    if (!utils.hasJsonContent(call.request.header(HttpHeaders.Accept))) {
-                        throw ThingException("Unsupported content type")
-                    }
-                     */
-
-
                     val retrievedThing = ts.retrieveThingById(id)
 
                     val json = Utils.jsonMapper.writeValueAsString(retrievedThing)
@@ -146,19 +134,12 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                 }
 
                 val pair = ts.insertAnonymousThing(thing)
-                //eventsController.eventSystem.igniteEvent(pair.first, EventType.THING_CREATED, pair.second)
 
                 call.response.header(HttpHeaders.Location, pair.first)
-
-
-                //val json = utils.jsonMapper.writeValueAsString(thing)
-                //call.respondText(json, ContentType.Application.Json, HttpStatusCode.Created)
                 call.respond(HttpStatusCode.Created)
 
                 eventController.notify(EventType.THING_CREATED, "{\n\"id\": \"${pair.first}\"\n}")
             }
-
-            //call.respond(HttpStatusCode.Created, "Anonymous Thing created successfully")
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(
                 title = "Bad Request",
@@ -200,9 +181,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
 
     suspend fun updateThing(call: ApplicationCall) {
         try {
-            val id = Utils.hasValidId(call.parameters["id"])
             val request = call.request
-
 
             if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
                 throw ThingException(
@@ -235,7 +214,6 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                     call.respond(HttpStatusCode.NoContent)
                     eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
                 }
-
             }
         } catch (e: ThingException) {
             val errorDetails = ErrorDetails(

@@ -9,14 +9,10 @@ import org.apache.jena.shacl.ValidationReport
 import org.glassfish.json.JsonUtil
 import utils.Utils
 
-//  (prev) ttl validation -> https://www.w3.org/ns/td.ttl
-//  (prev) jsonld validation -> https://www.w3.org/ns/td.jsonld
-
-
-//  (curr) xml shacl validation -> https://www.w3.org/ns/shacl.rdf
-//  (curr) td json schema validation -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-json-schema-validation.json
-//  (curr) tm json schema valdation -> https://github.com/w3c/wot-thing-description/blob/main/validation/tm-json-schema-validation.json
-//  (curr) td validation ttl -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-validation.ttl
+//  xml shacl validation -> https://www.w3.org/ns/shacl.rdf
+//  td json schema validation -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-json-schema-validation.json
+//  tm json schema valdation -> https://github.com/w3c/wot-thing-description/blob/main/validation/tm-json-schema-validation.json
+//  td validation ttl -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-validation.ttl
 
 class ThingDescriptionValidation {
 
@@ -58,21 +54,5 @@ class ThingDescriptionValidation {
                 throw Exception("Error performing Syntactic Validation: ${e.message}")
             }
         }
-
-        /* to verify
-    fun validateSemantic(tdModel: Model, contextModel: Model): Boolean {
-
-        val validationResults = mutableListOf<Boolean>()
-
-        contextModel.listSubjects().forEachRemaining { contextSubject ->
-            val tdStatements = tdModel.listStatements(contextSubject, RDF.type, null as RDFNode?)
-            validationResults.add(tdStatements.hasNext())
-        }
-
-        return validationResults.all { it }
-
-    }
-     */
-
     }
 }

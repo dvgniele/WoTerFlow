@@ -8,5 +8,7 @@ class DirectoryConfig {
         val contextV10 = "https://www.w3.org/2019/wot/td/v1"
         val contextV11 = "https://www.w3.org/2022/wot/td/v1.1"
 
+        val ttlContextLocal = "data/validation/td-validation.ttl"
+        val xmlShapesLocal = "data/validation/shacl.xml"
     }
 }

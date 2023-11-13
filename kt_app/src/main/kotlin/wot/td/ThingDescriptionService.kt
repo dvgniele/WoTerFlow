@@ -22,26 +22,9 @@ import java.util.*
 
 class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<String, ObjectNode>) {
     private val rdfDataset: Dataset = dbRdf
-    /*
-    private val jsonDB: DB = dbJson
-    val thingsMap = jsonDB.hashMap("things")
-        .keySerializer(Serializer.STRING)
-        .valueSerializer(ObjectNodeSerializer())
-        .createOrOpen()
-     */
 
-    val jsonContextUrl10 = "https://www.w3.org/2019/wot/td/v1"
-    val jsonContextUrl11 = "https://www.w3.org/2022/wot/td/v1.1"
-    //private val jsonContext11 = "data/validation/tdv11.jsonld"
-    private val jsonContext11 = "data/validation/tm-json-schema-validation.json"
-    //private val jsonContext11 = "data/validation/td-json-schema-validation.json"
-    val jsonLdContextResourcePath = "data/validation/td.jsonld"
-    private val ttlContextResourcePath = "data/validation/td-validation.ttl"
-    private val xmlShapesPath = "data/validation/shacl.xml"
-
-    private var jsonLdContextModel: Model = Utils.loadModel(jsonContext11, Lang.JSONLD11)
-    private var ttlContextModel: Model = Utils.loadModel(ttlContextResourcePath, Lang.TURTLE)
-    private var xmlShapesModel: Model = Utils.loadModel(xmlShapesPath, Lang.RDFXML)
+    private var ttlContextModel: Model = Utils.loadModel(DirectoryConfig.ttlContextLocal, Lang.TURTLE)
+    private var xmlShapesModel: Model = Utils.loadModel(DirectoryConfig.xmlShapesLocal, Lang.RDFXML)
 
     private val converter = RDFConverter()
 
@@ -108,7 +91,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
 
                 td.put("@id", id)
-                //td.put("id", graphId)
 
                 // Checking the jsonld version and upgrading if needed
                 val tdVersion11p = Utils.isJsonLd11OrGreater(td)
@@ -135,7 +117,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
 
                 //  Performing Semantic Validation
-
                 val semanticValidationFailures =
                     ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
@@ -160,8 +141,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     }
                 """.trimIndent()
 
-                println("query:\n$query")
-
                 //  Execute query
                 SparqlService.update(query, rdfDataset)
 
@@ -169,8 +148,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
                 //  Commit to close db connection
                 rdfDataset.commit()
-
-                //eventController.notify(EventType.THING_CREATED, tdV11.toString())
 
                 return Pair(id, tdV11)
             }
@@ -232,7 +209,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
 
                 //  Performing Semantic Validation
-
                 val semanticValidationFailures =
                     ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
@@ -249,19 +225,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 // Query preparation for RDF data storing
                 val rdfTriplesString = converter.toString(jsonRdfModel)
                 query = """
-        DELETE WHERE {
-            GRAPH <$graphId> {
-                ?s ?p ?o
-            }
-        };
-        INSERT DATA {
-            GRAPH <$graphId> {
-                $rdfTriplesString
-            }
-        }
-    """.trimIndent()
-
-                println("query:\n$query")
+                    DELETE WHERE {
+                        GRAPH <$graphId> {
+                            ?s ?p ?o
+                        }
+                    };
+                    INSERT DATA {
+                        GRAPH <$graphId> {
+                            $rdfTriplesString
+                        }
+                    }
+                """.trimIndent()
 
                 //  Execute query
                 val update = UpdateFactory.create(query)
@@ -272,7 +246,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
                 //  Commit to close db connection
                 rdfDataset.commit()
-
             }
             return Pair(id, existsAlready)
         } catch (e: ThingException) {
@@ -293,12 +266,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     }
 
     fun patchThing(td: ObjectNode, id: String): String {
-        /*
-        val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
-            ?: td.get("id")?.takeIf { it.isTextual }?.asText()
-            ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
-         */
-
         rdfDataset.begin(TxnType.WRITE)
 
         var query = ""
@@ -332,7 +299,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     }
 
                     //  Performing Semantic Validation
-
                     val semanticValidationFailures =
                         ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
 
@@ -349,19 +315,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     // Query preparation for RDF data storing
                     val rdfTriplesString = converter.toString(jsonRdfModel)
                     query = """
-                DELETE WHERE {
-                    GRAPH <$graphId> {
-                        ?s ?p ?o
-                    }
-                };
-                INSERT DATA {
-                    GRAPH <$graphId> {
-                        $rdfTriplesString
-                    }
-                }
-            """.trimIndent()
-
-                    println("query:\n$query")
+                        DELETE WHERE {
+                            GRAPH <$graphId> {
+                                ?s ?p ?o
+                            }
+                        };
+                        INSERT DATA {
+                            GRAPH <$graphId> {
+                                $rdfTriplesString
+                            }
+                        }
+                    """.trimIndent()
 
                     //  Execute query
                     val update = UpdateFactory.create(query)
@@ -403,8 +367,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
                 val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
 
-                println("query: $deleteQuery")
-
                 val deleteUpdate = UpdateFactory.create(deleteQuery)
                 val deleteExecution: UpdateProcessor = UpdateExecutionFactory.create(deleteUpdate, rdfDataset)
                 deleteExecution.execute()
@@ -428,7 +390,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             return thingsMap[graphId]
         } catch (e: Exception){
-            println("${e.message}")
             throw ThingException("Retrieve Get: ${e.message}")
         }
     }
@@ -438,7 +399,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
             return thingsMap.containsKey(graphId)
         } catch (e: Exception){
-            println("${e.message}")
             throw ThingException("Retrieve Head: ${e.message}")
         }
     }
@@ -447,7 +407,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         try {
             return thingsMap.values.toList()
         } catch (e: Exception){
-            println("${e.message}")
             throw ThingException("Retrieve All: ${e.message}")
         }
     }

@@ -60,8 +60,7 @@ class XPathService {
         private fun convertXdmToJson(xdmNode: XdmNode): JsonNode {
             val objectMapper = XmlMapper()
             val jsonText = xdmNode.toString()
-            val bl = objectMapper.readTree(jsonText)
-            return bl
+            return objectMapper.readTree(jsonText)
         }
     }
 }

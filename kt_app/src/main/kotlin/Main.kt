@@ -35,14 +35,6 @@ fun main(args: Array<String>) {
 
     val rdf_db: Dataset = TDB2Factory.connectDataset("data/tdb-data")
 
-    val json_db = null
-    /*
-    val json_db: DB = DBMaker
-        .fileDB("data/json-data.db")
-        .transactionEnable()
-        .make()
-     */
-
     val thingsMap: MutableMap<String, ObjectNode> = ConcurrentHashMap()
 
     val model: Model = ModelFactory.createDefaultModel()
@@ -61,7 +53,7 @@ fun main(args: Array<String>) {
         .add("/rdf", rdf_db)
         .build()
 
-    //server.start()
+    server.start()
 
     val env = applicationEngineEnvironment {
         val port = 8081

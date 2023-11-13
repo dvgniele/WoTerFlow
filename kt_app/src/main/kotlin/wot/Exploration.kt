@@ -1,4 +1,0 @@
-package wot
-
-class Exploration {
-}

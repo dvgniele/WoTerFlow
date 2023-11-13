@@ -39,8 +39,8 @@ class Utils {
             val content = StringBuilder()
             var line: String?
 
-            reader.use { reader ->
-                while (reader.readLine().also { line = it } != null) {
+            reader.use { it ->
+                while (it.readLine().also { line = it } != null) {
                     content.append(line).append("\n")
                 }
             }
@@ -64,13 +64,11 @@ class Utils {
                     val model = ModelFactory.createDefaultModel()
                     RDFDataMgr.read(model, inputStream, lang)
 
-                    //println("Model loaded successfully\n${model.toString()}")
                     return model
                 } else {
                     throw ThingException("Resource content is null for path: $filePath")
                 }
             } catch (e: Exception) {
-                println("\n\nException: $e. path: $filePath")
                 throw ThingException("Cannot load model: ${e.message} path: $filePath")
             }
         }

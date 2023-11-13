@@ -20,7 +20,6 @@ class EventController(val thingCreatedSseFlow: MutableSharedFlow<SseEvent>,
         )
 
         pastEvents.add(event)
-        println(event.id)
         return event
     }
 

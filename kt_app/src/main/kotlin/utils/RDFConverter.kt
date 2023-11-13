@@ -132,14 +132,6 @@ class RDFConverter {
 
             thing.put("@version", "1.1")
 
-            /*
-                    if (thing.has("id")) {
-                        thing.set<ObjectNode>("@id", thing.remove("id"))
-                    }
-        */
-
-            // todo: check contexts
-
             return thing
         } catch (e: Exception) {
             throw ConversionException("Error converting to JSON-LD 1.1")
@@ -152,25 +144,11 @@ class RDFConverter {
             val jsonArray = JsonLd.fromRdf(document).options(options11).get()
             val jsonDocument = JsonDocument.of(jsonArray.toString().reader())
 
-            /*
-                    val jsonLdDocument = JsonLd.toRdf(jsonDocument)
-                        .options(options11)
-                        .get()
-        */
-
-//            val serialized = groupQuads(jsonLdDocument.toList())
-
             val expanded = JsonLd.expand(jsonDocument).options(options11).get()
             val expandedDocument = JsonDocument.of(expanded)
 
-            val flattened = JsonLd.flatten(expandedDocument).options(options11).get()
-
             val framed = JsonLd.frame(expandedDocument, contextV11Document).options(options11).get()
-            //val compacted = JsonLd.compact(jsonDocument, contextV11Document).get()
-
             val graphed = getGraphFromModel(framed)
-
-
 
             return graphed!!
         } catch (e: Exception) {
@@ -187,9 +165,8 @@ class RDFConverter {
 
             val model = ModelFactory.createDefaultModel()
 
-            for (jsonObject in expandedDocument) {
-                val jsonLdStringReader = StringReader(jsonObject.toString())
-                RDFDataMgr.read(model, jsonLdStringReader, null, lang)
+            expandedDocument.forEach {
+                RDFDataMgr.read(model, it.toString().reader(), null, lang)
             }
 
             return model
