@@ -1,6 +1,9 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     kotlin("jvm") version "1.8.21"
     application
+    id("com.github.johnrengelman.shadow") version "7.1.0"
 }
 
 group = "io.github.dvgniele"
@@ -57,18 +60,20 @@ dependencies {
     // https://mvnrepository.com/artifact/org.apache.jena/jena-shacl
     implementation("org.apache.jena:jena-shacl:$jena_version")
 
+    // https://mvnrepository.com/artifact/org.apache.jena/jena-tdb2
+    implementation("org.apache.jena:jena-tdb2:$jena_version")
+
     // https://mvnrepository.com/artifact/com.github.erosb/everit-json-schema
-    implementation("com.github.erosb:everit-json-schema:1.14.2")
+    //implementation("com.github.erosb:everit-json-schema:1.14.2")
 
     // https://mvnrepository.com/artifact/org.apache.jena/jena-fuseki
-    implementation("org.apache.jena:jena-fuseki-main:$jena_version")
+    //implementation("org.apache.jena:jena-fuseki-main:$jena_version")
+
+
+
 
     // https://mvnrepository.com/artifact/com.apicatalog/titanium-json-ld
     implementation("com.apicatalog:titanium-json-ld:1.3.2")
-
-    // https://mvnrepository.com/artifact/org.mapdb/mapdb
-    //implementation("org.mapdb:mapdb:3.0.9")
-
 
 
     // KTOR
@@ -103,17 +108,31 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.3")
 
 
-    // https://mvnrepository.com/artifact/com.google.code.gson/gson
-    //implementation("com.google.code.gson:gson:2.10.1")
-
-
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
     implementation("ch.qos.logback:logback-classic:1.4.11")
 
 }
 
 tasks.test {
-    useJUnitPlatform()
+    //useJUnitPlatform()
+}
+
+tasks {
+    compileKotlin {
+        kotlinOptions.jvmTarget = "1.8"
+    }
+
+    processResources {
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    }
+
+    shadowJar {
+        archiveFileName.set("WoTerFlow.jar")
+
+        from("src/main/resources"){
+            include("**/*.*")
+        }
+    }
 }
 
 kotlin {

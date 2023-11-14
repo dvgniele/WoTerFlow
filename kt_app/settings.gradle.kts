@@ -6,4 +6,5 @@ pluginManagement {
     
 }
 rootProject.name = "kt_app"
+include("src")
 
