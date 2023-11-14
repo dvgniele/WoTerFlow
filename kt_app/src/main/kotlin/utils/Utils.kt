@@ -10,21 +10,16 @@ import exceptions.ThingException
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
-import io.ktor.util.cio.*
-import io.ktor.utils.io.*
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.merge
 import org.apache.jena.query.Dataset
 import org.apache.jena.rdf.model.Model
 import org.apache.jena.rdf.model.ModelFactory
 import org.apache.jena.riot.Lang
 import org.apache.jena.riot.RDFDataMgr
-import wot.events.EventType
-import wot.events.SseEvent
 import java.io.*
 import java.net.URL
-import kotlin.time.Duration.Companion.seconds
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 class Utils {
     companion object {
@@ -56,7 +51,18 @@ class Utils {
             }
         }
 
-        fun loadModel(filePath: String, lang: Lang): Model {
+        fun loadModel(content: String, lang: Lang): Model {
+            try {
+                val model = ModelFactory.createDefaultModel()
+                RDFDataMgr.read(model, content.reader(), null, lang)
+
+                return model
+            } catch (e: Exception) {
+                throw ThingException("Cannot load model: ${e.message}")
+            }
+        }
+
+        fun loadModelFromPath(filePath: String, lang: Lang): Model {
             try {
                 val inputStream = readFileAsStream(filePath)
 
@@ -164,6 +170,20 @@ class Utils {
                 return true
             }
             return false
+        }
+
+        fun createDirectoryIfNotExists(directoryPath: String) {
+            val path: Path = Paths.get(directoryPath)
+
+            if (!Files.exists(path)) {
+                try {
+                    Files.createDirectories(path)
+                    println("Directory created: $directoryPath")
+                } catch (e: Exception) {
+                    println("Error creating directory: $directoryPath")
+                    e.printStackTrace()
+                }
+            }
         }
     }
 }
