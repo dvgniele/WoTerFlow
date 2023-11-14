@@ -29,47 +29,43 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     private val converter = RDFConverter()
 
     private fun refreshJsonDbItem(graphId: String) {
-        synchronized(thingsMap){
-            try {
-                val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
+        try {
+            val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
 
-                if (!ttlModel.isEmpty){
-                    val objNode = converter.fromRdf(ttlModel)
-                    val thing = converter.toJsonLd11(Utils.toJson(objNode.toString()))
+            if (!ttlModel.isEmpty){
+                val objNode = converter.fromRdf(ttlModel)
+                val thing = converter.toJsonLd11(Utils.toJson(objNode.toString()))
 
-                    thingsMap[graphId] = thing
-                } else {
-                    thingsMap.remove(graphId)
-                }
-            } catch (e: Exception) {
-                throw ThingException("Error refreshing the JsonDb item with id: $graphId: ${e.message}")
+                thingsMap[graphId] = thing
+            } else {
+                thingsMap.remove(graphId)
             }
+        } catch (e: Exception) {
+            throw ThingException("Error refreshing the JsonDb item with id: $graphId: ${e.message}")
         }
     }
 
     fun refreshJsonDb() {
-        synchronized(thingsMap) {
-            rdfDataset.begin(TxnType.READ)
+        rdfDataset.begin(TxnType.READ)
 
-            try {
-                val ttlList = Utils.loadRDFDatasetIntoModelList(rdfDataset)
-                val things = ttlList.map { converter.toJsonLd11(converter.fromRdf(it)) }
+        try {
+            val ttlList = Utils.loadRDFDatasetIntoModelList(rdfDataset)
+            val things = ttlList.map { converter.toJsonLd11(converter.fromRdf(it)) }
 
-                //  Clear the things map and populate it back with the updated dataset
-                thingsMap.clear()
+            //  Clear the things map and populate it back with the updated dataset
+            thingsMap.clear()
 
-                things.forEach { thing ->
-                    thing["id"]?.asText()?.let { id ->
-                        thingsMap[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)] = thing
-                    }
+            things.forEach { thing ->
+                thing["id"]?.asText()?.let { id ->
+                    thingsMap[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)] = thing
                 }
-
-                println("\t###\tREADY\t###")
-            } catch (e: Exception) {
-                throw ThingException("Error refreshing the JsonDb: ${e.message}")
-            } finally {
-                rdfDataset.end()
             }
+
+            println("\t###\tREADY\t###")
+        } catch (e: Exception) {
+            throw ThingException("Error refreshing the JsonDb: ${e.message}")
+        } finally {
+            rdfDataset.end()
         }
     }
 
@@ -83,74 +79,73 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         var graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
         try {
+            while (Utils.idExists(thingsMap.keys, graphId)) {
+                uuid = UUID.randomUUID().toString()
+                id = Utils.strconcat("urn:uuid:", uuid)
+                graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+            }
+
+            td.put("@id", id)
+
+            // Checking the jsonld version and upgrading if needed
+            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+
+            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+
+            // JsonLd decoration with missing fields
+            decorateThingDescription(tdV11)
+
+            val jsonRdfModel = converter.toRdf(tdV11.toString(), Lang.JSONLD11)
+
+            //  Performing Syntactic Validation
+            val syntacticValidationFailures =
+                ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
+
+            if (syntacticValidationFailures.isNotEmpty()) {
+                val validationErrors = syntacticValidationFailures.map {
+                    ValidationError(
+                        "Syntactic Validation",
+                        it
+                    )
+                }
+                throw ValidationException(validationErrors, "Syntactic Validation Failed")
+            }
+
+            //  Performing Semantic Validation
+            val semanticValidationFailures =
+                ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
+
+            if (semanticValidationFailures.isNotEmpty()) {
+                val validationErrors = semanticValidationFailures.map {
+                    ValidationError(
+                        "Semantic Validation",
+                        it
+                    )
+                }
+                throw ValidationException(validationErrors, "Semantic Validation Failed")
+            }
+
+
+            // Query preparation for RDF data storing
+            val rdfTriplesString = converter.toString(jsonRdfModel)
+            query = """
+                INSERT DATA {
+                    GRAPH <$graphId> {
+                        $rdfTriplesString
+                    }
+                }
+            """.trimIndent()
+
+            //  Execute query
+            SparqlService.update(query, rdfDataset)
+
             synchronized(this) {
-                while (Utils.idExists(thingsMap.keys, graphId)) {
-                    uuid = UUID.randomUUID().toString()
-                    id = Utils.strconcat("urn:uuid:", uuid)
-                    graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-                }
-
-                td.put("@id", id)
-
-                // Checking the jsonld version and upgrading if needed
-                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-
-                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
-
-                // JsonLd decoration with missing fields
-                decorateThingDescription(tdV11)
-
-                val jsonRdfModel = converter.toRdf(tdV11.toString(), Lang.JSONLD11)
-
-                //  Performing Syntactic Validation
-                val syntacticValidationFailures =
-                    ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
-
-                if (syntacticValidationFailures.isNotEmpty()) {
-                    val validationErrors = syntacticValidationFailures.map {
-                        ValidationError(
-                            "Syntactic Validation",
-                            it
-                        )
-                    }
-                    throw ValidationException(validationErrors, "Syntactic Validation Failed")
-                }
-
-                //  Performing Semantic Validation
-                val semanticValidationFailures =
-                    ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
-
-                if (semanticValidationFailures.isNotEmpty()) {
-                    val validationErrors = semanticValidationFailures.map {
-                        ValidationError(
-                            "Semantic Validation",
-                            it
-                        )
-                    }
-                    throw ValidationException(validationErrors, "Semantic Validation Failed")
-                }
-
-
-                // Query preparation for RDF data storing
-                val rdfTriplesString = converter.toString(jsonRdfModel)
-                query = """
-                    INSERT DATA {
-                        GRAPH <$graphId> {
-                            $rdfTriplesString
-                        }
-                    }
-                """.trimIndent()
-
-                //  Execute query
-                SparqlService.update(query, rdfDataset)
-
-                refreshJsonDbItem(graphId)
-
                 //  Commit to close db connection
                 rdfDataset.commit()
-
-                return Pair(id, tdV11)
             }
+
+            return Pair(id, tdV11)
+
         } catch (e: ThingException) {
             rdfDataset.abort()
 
@@ -169,6 +164,10 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             throw ThingException("Create new Thing Error: ${e.message}\nquery:\n$query")
         } finally {
             rdfDataset.end()
+
+            rdfDataset.begin(TxnType.READ)
+            refreshJsonDbItem(graphId)
+            rdfDataset.end()
         }
     }
 
@@ -181,18 +180,110 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
         var query = ""
         var existsAlready = false
+        val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
         try {
+            existsAlready = checkIfThingExists(id)
+
+            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+
+            decorateThingDescription(tdV11)
+
+            val jsonRdfModel = converter.toRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+
+            //  Performing Syntactic Validation
+            val syntacticValidationFailures =
+                ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
+
+            if (syntacticValidationFailures.isNotEmpty()) {
+                val validationErrors = syntacticValidationFailures.map {
+                    ValidationError(
+                        "Syntactic Validation",
+                        it
+                    )
+                }
+                throw ValidationException(validationErrors, "Syntactic Validation Failed")
+            }
+
+            //  Performing Semantic Validation
+            val semanticValidationFailures =
+                ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
+
+            if (semanticValidationFailures.isNotEmpty()) {
+                val validationErrors = semanticValidationFailures.map {
+                    ValidationError(
+                        "Semantic Validation",
+                        it
+                    )
+                }
+                throw ValidationException(validationErrors, "Semantic Validation Failed")
+            }
+
+            // Query preparation for RDF data storing
+            val rdfTriplesString = converter.toString(jsonRdfModel)
+            query = """
+                DELETE WHERE {
+                    GRAPH <$graphId> {
+                        ?s ?p ?o
+                    }
+                };
+                INSERT DATA {
+                    GRAPH <$graphId> {
+                        $rdfTriplesString
+                    }
+                }
+            """.trimIndent()
+
+            //  Execute query
+            val update = UpdateFactory.create(query)
+            val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
+            updateExecution.execute()
+
             synchronized(this) {
-                existsAlready = checkIfThingExists(id)
-                val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+                //  Commit to close db connection
+                rdfDataset.commit()
+            }
 
-                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+            return Pair(id, existsAlready)
+        } catch (e: ThingException) {
+            rdfDataset.abort()
 
-                decorateThingDescription(tdV11)
+            throw ThingException("An error occurred while updating the thing: ${e.message}")
+        } catch (e: ValidationException) {
+            rdfDataset.abort()
 
-                val jsonRdfModel = converter.toRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+            throw e
+        } catch (e: Exception) {
+            rdfDataset.abort()
+
+            throw ThingException("Update Thing Error: ${e.message}")
+        } finally {
+            rdfDataset.end()
+
+            rdfDataset.begin(TxnType.READ)
+            refreshJsonDbItem(graphId)
+            rdfDataset.end()
+        }
+    }
+
+    fun patchThing(td: ObjectNode, id: String): String {
+        rdfDataset.begin(TxnType.WRITE)
+
+        var query = ""
+        val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+
+        try {
+            val thing = retrieveThingById(id)
+
+            if (thing != null) {
+                thing.setAll<ObjectNode>(td)
+
+                removeEmptyProperties(thing)
+
+                decorateThingDescription(thing)
+
+                val jsonRdfModel = converter.toRdf(thing.toString(), Lang.JSONLD11)
 
                 //  Performing Syntactic Validation
                 val syntacticValidationFailures =
@@ -242,106 +333,16 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
                 updateExecution.execute()
 
-                refreshJsonDbItem(graphId)
-
-                //  Commit to close db connection
-                rdfDataset.commit()
-            }
-            return Pair(id, existsAlready)
-        } catch (e: ThingException) {
-            rdfDataset.abort()
-
-            throw ThingException("An error occurred while updating the thing: ${e.message}")
-        } catch (e: ValidationException) {
-            rdfDataset.abort()
-
-            throw e
-        } catch (e: Exception) {
-            rdfDataset.abort()
-
-            throw ThingException("Update Thing Error: ${e.message}")
-        } finally {
-            rdfDataset.end()
-        }
-    }
-
-    fun patchThing(td: ObjectNode, id: String): String {
-        rdfDataset.begin(TxnType.WRITE)
-
-        var query = ""
-
-        try {
-            synchronized(this) {
-                val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-                val thing = retrieveThingById(id)
-
-                if (thing != null) {
-                    thing.setAll<ObjectNode>(td)
-
-                    removeEmptyProperties(thing)
-
-                    decorateThingDescription(thing)
-
-                    val jsonRdfModel = converter.toRdf(thing.toString(), Lang.JSONLD11)
-
-                    //  Performing Syntactic Validation
-                    val syntacticValidationFailures =
-                        ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
-
-                    if (syntacticValidationFailures.isNotEmpty()) {
-                        val validationErrors = syntacticValidationFailures.map {
-                            ValidationError(
-                                "Syntactic Validation",
-                                it
-                            )
-                        }
-                        throw ValidationException(validationErrors, "Syntactic Validation Failed")
-                    }
-
-                    //  Performing Semantic Validation
-                    val semanticValidationFailures =
-                        ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
-
-                    if (semanticValidationFailures.isNotEmpty()) {
-                        val validationErrors = semanticValidationFailures.map {
-                            ValidationError(
-                                "Semantic Validation",
-                                it
-                            )
-                        }
-                        throw ValidationException(validationErrors, "Semantic Validation Failed")
-                    }
-
-                    // Query preparation for RDF data storing
-                    val rdfTriplesString = converter.toString(jsonRdfModel)
-                    query = """
-                        DELETE WHERE {
-                            GRAPH <$graphId> {
-                                ?s ?p ?o
-                            }
-                        };
-                        INSERT DATA {
-                            GRAPH <$graphId> {
-                                $rdfTriplesString
-                            }
-                        }
-                    """.trimIndent()
-
-                    //  Execute query
-                    val update = UpdateFactory.create(query)
-                    val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
-                    updateExecution.execute()
-
-                    refreshJsonDbItem(graphId)
-
+                synchronized(this) {
                     //  Commit to close db connection
                     rdfDataset.commit()
-
-                    return id
-                } else {
-                    throw ThingException("Thing with id: $graphId does not exists.")
                 }
+
+                return id
+            } else {
+                throw ThingException("Thing with id: $graphId does not exists.")
             }
+
         } catch (e: ThingException) {
             rdfDataset.abort()
 
@@ -356,23 +357,25 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             throw ThingException("Patch Thing Error: ${e.message}")
         } finally {
             rdfDataset.end()
+
+            rdfDataset.begin(TxnType.READ)
+            refreshJsonDbItem(id)
+            rdfDataset.end()
         }
     }
 
     fun deleteThingById(id: String) {
         rdfDataset.begin(TxnType.WRITE)
+        val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
         try {
+            val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
+
+            val deleteUpdate = UpdateFactory.create(deleteQuery)
+            val deleteExecution: UpdateProcessor = UpdateExecutionFactory.create(deleteUpdate, rdfDataset)
+            deleteExecution.execute()
+
             synchronized(this) {
-                val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-                val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
-
-                val deleteUpdate = UpdateFactory.create(deleteQuery)
-                val deleteExecution: UpdateProcessor = UpdateExecutionFactory.create(deleteUpdate, rdfDataset)
-                deleteExecution.execute()
-
-                refreshJsonDbItem(graphId)
-
                 //  Commit to close db connection
                 rdfDataset.commit()
             }
@@ -381,6 +384,10 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
             throw ThingException("An error occurred while Deleting the thing: ${e.message}")
         } finally {
+            rdfDataset.end()
+
+            rdfDataset.begin(TxnType.READ)
+            refreshJsonDbItem(graphId)
             rdfDataset.end()
         }
     }

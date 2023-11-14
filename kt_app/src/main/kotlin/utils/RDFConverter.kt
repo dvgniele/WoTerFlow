@@ -185,7 +185,7 @@ class RDFConverter {
         val graphArray = node["@graph"]
         if (graphArray != null && graphArray.isArray) {
             val nonAnonItem = graphArray.find { item ->
-                item is ObjectNode && item.has("id") && !item["id"].textValue().startsWith("_:")
+                item is ObjectNode && item.has("id") && item["id"].textValue().startsWith("urn")
             }
             if (nonAnonItem is ObjectNode) {
                 return nonAnonItem
