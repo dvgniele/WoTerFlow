@@ -12,10 +12,7 @@ validation/*.ttl
 
 ./src/drafts/
 
-kt_app/data/validation/td.ttl
-kt_app/data/validation/tdv11.jsonld
-kt_app/data/validation/td.jsonld
-kt_app/data/validation/README.md
-
-kt_app/src/main/kotlin/utils/OtherConverter.kt
-kt_app/src/main/kotlin/utils/ObjectNodeSerializer.kt
+kt_app/src/main/resources/validation/td.ttl
+kt_app/src/main/resources/validation/tdv11.jsonld
+kt_app/src/main/resources/validation/td.jsonld
+kt_app/src/main/resources/validation/README.md
