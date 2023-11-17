@@ -2,6 +2,9 @@ package wot.directory
 
 import org.apache.jena.ext.com.google.common.io.Resources
 
+/**
+ * Represents a [Directory] configuration
+ */
 class DirectoryConfig {
     companion object {
         val BASE_URI = "http://example.com/ktwot/"

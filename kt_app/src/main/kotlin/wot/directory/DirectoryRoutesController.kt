@@ -12,7 +12,15 @@ import wot.search.jsonpath.JsonPathController
 import wot.search.sparql.SparqlController
 import wot.search.xpath.XPathController
 
+/**
+ * Represents the [Directory] routes controller.
+ */
 class DirectoryRoutesController(private val directory: Directory) {
+    /**
+     * Setups the routes for the [Directory].
+     *
+     * @param route Routing tree.
+     */
     fun setupRoutes(route: Route) {
 
         route.route("/things") {
@@ -37,10 +45,6 @@ class DirectoryRoutesController(private val directory: Directory) {
                 directory.thingController.retrieveThingById(call)
             }
 
-            get("/http://example.com/ktwot/graph/{id}") {
-                directory.thingController.retrieveThingById(call)
-            }
-
             head("/{id}"){
                 directory.thingController.retrieveThingById(call)
             }
@@ -62,10 +66,6 @@ class DirectoryRoutesController(private val directory: Directory) {
             }
 
             delete("/{id}") {
-                directory.thingController.deleteThing(call)
-            }
-
-            delete("/http://example.com/ktwot/graph/{id}") {
                 directory.thingController.deleteThing(call)
             }
         }
@@ -120,8 +120,15 @@ class DirectoryRoutesController(private val directory: Directory) {
 
             get("/thing_created") {
                 if (!Utils.rejectedDiff(call)) {
+                    val lastEventId = call.request.headers["Last-Event-ID"]
+
+                    val eventsList = directory.eventController.getPastEvents(
+                        lastEventId,
+                        EventType.THING_CREATED
+                    )
+
                     call.respondSse(
-                        emptyList(),
+                        eventsList,
                         EventType.THING_CREATED to directory.eventController.thingCreatedSseFlow
                     )
                 }
@@ -129,16 +136,30 @@ class DirectoryRoutesController(private val directory: Directory) {
 
             get("/thing_updated") {
                 if (!Utils.rejectedDiff(call)) {
+                    val lastEventId = call.request.headers["Last-Event-ID"]
+
+                    val eventsList = directory.eventController.getPastEvents(
+                        lastEventId,
+                        EventType.THING_UPDATED
+                    )
+
                     call.respondSse(
-                        emptyList(),
+                        eventsList,
                         EventType.THING_UPDATED to directory.eventController.thingUpdatedSseFlow
                     )
                 }
             }
 
             get("/thing_deleted") {
+                val lastEventId = call.request.headers["Last-Event-ID"]
+
+                val eventsList = directory.eventController.getPastEvents(
+                    lastEventId,
+                    EventType.THING_DELETED
+                )
+
                 call.respondSse(
-                    emptyList(),
+                    eventsList,
                     EventType.THING_DELETED to directory.eventController.thingDeletedSseFlow
                 )
             }
