@@ -12,8 +12,17 @@ import wot.events.EventType
 import wot.events.SseEvent
 import kotlin.time.Duration.Companion.seconds
 
+/**
+ * Utilities class for the Server-Sent Events functionalities.
+ */
 class SSEUtils {
     companion object {
+        /**
+         * Responds to a client with a [SseEvent] response.
+         *
+         * @param eventsList List of past [SseEvent] events to notify.
+         * @param eventsFlows Flow to send notifications to.
+         */
         suspend fun ApplicationCall.respondSse(eventsList: List<SseEvent>, vararg eventsFlows: Pair<EventType, Flow<SseEvent>>
         ) {
             with(response) {
@@ -48,6 +57,11 @@ class SSEUtils {
             }
         }
 
+        /**
+         * Flushes the [SseEvent] as [String] into the [ByteWriteChannel].
+         *
+         * @param event The [SseEvent] to write.
+         */
         private suspend fun ByteWriteChannel.writeEvent(event: SseEvent) {
             val eventString = buildString {
                 event.event?.let { append("event: $it\n") }

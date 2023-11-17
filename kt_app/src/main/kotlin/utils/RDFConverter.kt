@@ -25,6 +25,9 @@ import java.io.StringReader
 import java.io.StringWriter
 import java.net.URI
 
+/**
+ * Utility class to perform conversions on RDF data.
+ */
 class RDFConverter {
 
     val objectMapper = ObjectMapper()
@@ -37,6 +40,9 @@ class RDFConverter {
 
     val options11 = JsonLdOptions()
 
+    /**
+     * Initialization: loads the context documents in the JsonLdOptions.
+     */
     init {
         val documentCache = mutableMapOf<String, String>()
         documentCache[contextV11] = contextV11data
@@ -50,20 +56,31 @@ class RDFConverter {
         options11.isCompactToRelative = true
     }
 
+    /**
+     * Performs conversion from JSON-LD v1.0 or JSON to JSON-LD v1.1.
+     *
+     * @param thing The [ObjectNode] to convert to JSON-LD v1.1.
+     *
+     * @return The converted [ObjectNode]
+     */
     fun toJsonLd11(thing: ObjectNode): ObjectNode {
         try {
+            //  Check if thing has the field `securityDefinitions`.
             if (thing.has("securityDefinitions")) {
                 val securityDefinitions = thing.get("securityDefinitions")
                 val updatedSecurityDefinitions = JsonNodeFactory.instance.objectNode()
 
                 securityDefinitions.fieldNames().forEach { fieldName ->
                     val securityDefinition = securityDefinitions.get(fieldName)
+
+                    //  If it is `@none`, a new node `scheme` will be set to `nosec_sc`.
                     if (fieldName == "@none") {
                         val scheme = securityDefinition.get("scheme").textValue()
                         val newNode = JsonNodeFactory.instance.objectNode()
                         newNode.put("scheme", scheme)
                         updatedSecurityDefinitions.put("nosec_sc", newNode)
                     } else {
+                        //  Else the prefix `td:` will be removed from `td:scheme`.
                         if (securityDefinition.has("td:scheme")) {
                             val scheme = securityDefinition.get("td:scheme")
                             (securityDefinition as ObjectNode).put("scheme", scheme.textValue())
@@ -73,12 +90,16 @@ class RDFConverter {
                     }
                 }
 
+                //  The field `securityDefinitions` is updated.
                 thing.put("securityDefinitions", updatedSecurityDefinitions)
             }
 
+            //  The field `hasSecurityConfiguration` is renamed to `security`.
             if (thing.has("hasSecurityConfiguration")) {
                 thing.set<ObjectNode>("security", thing.remove("hasSecurityConfiguration"))
             }
+
+            //  The `security` becomes an ArrayNode.
             if (thing.has("security") && thing.get("security") !is ArrayNode) {
                 val security = objectMapper.createArrayNode()
                 security.add(thing.remove("security"))
@@ -87,6 +108,7 @@ class RDFConverter {
 
             val context = thing.get("@context")
 
+            //  `context` is being updated to JSON-LD v1.1.
             when (context) {
                 is ObjectNode -> {
                     val modifiedContext = context.deepCopy()
@@ -122,14 +144,18 @@ class RDFConverter {
                 }
             }
 
+
+            //  Registration infos are set.
             if (thing.has("registration")) {
                 val registration = thing.get("registration") as ObjectNode
                 registration.remove("id")
             }
 
+            //  `title` field purified from prefix.
             if (thing.has("td:title"))
                 thing.put("title", thing.remove("td:title"))
 
+            //  `version` field set to `1.1`
             thing.put("@version", "1.1")
 
             return thing
@@ -138,6 +164,13 @@ class RDFConverter {
         }
     }
 
+    /**
+     * Performs conversion from RDF [Model] to [ObjectNode].
+     *
+     * @param rdfModel Model to convert.
+     *
+     * @return The converted [ObjectNode].
+     */
     fun fromRdf(rdfModel: Model): ObjectNode {
         try {
             val document = RdfDocument.of(toString(rdfModel).reader())
@@ -156,7 +189,14 @@ class RDFConverter {
         }
     }
 
-    fun toRdf(jsonLdString: String, lang: Lang): Model {
+    /**
+     * Performs conversion from JSON-LD [String] to RDF [Model] of Language [Lang.JSONLD11].
+     *
+     * @param jsonLdString The [String] value of the content of a JSON-LD.
+     *
+     * @return The converted [Model].
+     */
+    fun toRdf(jsonLdString: String): Model {
         try {
             val document = JsonDocument.of(jsonLdString.reader())
 
@@ -166,7 +206,7 @@ class RDFConverter {
             val model = ModelFactory.createDefaultModel()
 
             expandedDocument.forEach {
-                RDFDataMgr.read(model, it.toString().reader(), null, lang)
+                RDFDataMgr.read(model, it.toString().reader(), null, Lang.JSONLD11)
             }
 
             return model
@@ -177,6 +217,13 @@ class RDFConverter {
         }
     }
 
+    /**
+     * Retrieves the `@graph` field from a [JsonObject].
+     *
+     * @param jsonObject The json object to retrieve the `@graph` field from.
+     *
+     * @return the `@graph` as [ObjectNode].
+     */
     private fun getGraphFromModel(jsonObject: JsonObject): ObjectNode? {
         val jsonString = jsonObject.toString()
 
@@ -194,6 +241,11 @@ class RDFConverter {
         return null
     }
 
+    /**
+     * Performs conversion to [String] of an RDF [Model] of Language [Lang.NTRIPLES].
+     *
+     * @return the [String] conversion of the [Model].
+     */
     fun toString(model: Model): String {
         try {
             val writer = StringWriter()
