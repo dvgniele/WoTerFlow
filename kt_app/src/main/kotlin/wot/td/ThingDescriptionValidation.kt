@@ -14,10 +14,24 @@ import utils.Utils
 //  tm json schema valdation -> https://github.com/w3c/wot-thing-description/blob/main/validation/tm-json-schema-validation.json
 //  td validation ttl -> https://github.com/w3c/wot-thing-description/blob/main/validation/td-validation.ttl
 
+/**
+ * Validates the semantic aspects of a Thing Description model.
+ *
+ * This class provides methods to perform semantic validation on a Thing Description model represented as RDF using the XML and Turtle (TTL) serialization format.
+ */
 class ThingDescriptionValidation {
 
     companion object {
 
+        /**
+         * Validates the semantic aspects of a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) [Model].
+         *
+         * @param tdModel The RDF [Model] representing the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td).
+         * @param ttlModel The RDF [Model] representing the semantic validation rules.
+         *
+         * @return A list of validation messages. An empty list indicates a successful validation.
+         * @throws Exception if an error occurred during the validation process.
+         */
         fun validateSemantic(tdModel: Model, ttlModel: Model): List<String> {
             try {
                 val shapes = Shapes.parse(ttlModel)
@@ -36,6 +50,15 @@ class ThingDescriptionValidation {
             }
         }
 
+        /**
+         * Validates the syntactic aspects of a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) [Model].
+         *
+         * @param tdModel The RDF [Model] representing the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td).
+         * @param xmlModel The RDF [Model] representing the syntactic validation rules.
+         *
+         * @return A list of validation messages. An empty list indicates a successful validation.
+         * @throws Exception if an error occurred during the validation process.
+         */
         fun validateSyntactic(tdModel: Model, xmlModel: Model): List<String> {
             try {
                 val shapes = Shapes.parse(xmlModel)

@@ -18,10 +18,21 @@ import wot.directory.DirectoryConfig
 import wot.events.EventController
 import wot.events.EventType
 
+/**
+ * Controller responsible for managing Thing Descriptions.
+ *
+ * @param service The [ThingDescriptionService] to use to execute operations on [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td)
+ * @param eventController The [EventController] to handle the Server-Sent Events (SSE)
+ */
 class ThingDescriptionController(service: ThingDescriptionService, private val eventController: EventController) {
 
-    val ts = service
+    private val ts = service
 
+    /**
+     * Retrieves all the [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td).
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun retrieveAllThings(call: ApplicationCall) {
         val request = call.request
 
@@ -59,19 +70,42 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }
     }
 
+    /**
+     * Generates the Listing Response.
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     * @param count The total number of resources available.
+     * @param offset The current offset indicating the starting point of the resource list.
+     * @param limit The maximum number of resources to include in a single response.
+     */
     private fun generateListingResponse(call: ApplicationCall, count: Int, offset: Int, limit: Int) {
+        //  Calculate the new offset for the next page, or set it to null if there's no next page
         val newOffset = if (offset + limit >= count) offset + limit else null
         val linkHeader = buildLinkHeader(newOffset, limit)
 
+        //  Append the Link Header to the response
         call.response.headers.append(HttpHeaders.Link, linkHeader)
     }
 
+    /**
+     * Generates the Collection Response
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     * @param count The total number of resources available.
+     * @param offset The current offset indicating the starting point of the resource list.
+     * @param limit The maximum number of resources to include in a single response.
+     *
+     * @return An [ObjectNode] representing the collection response in JSON format.
+     */
     private fun generateCollectionResponse(call: ApplicationCall, count: Int, offset: Int, limit: Int): ObjectNode {
+        //  Create an ObjectNode to represent the collection response.
         return Utils.jsonMapper.createObjectNode().apply {
             put("@context", DirectoryConfig.contextV11)
             put("@type", "ThingCollection")
             put("total", count)
             put("@id", "/things?offset=$offset&limit=$limit&format=collection")
+
+            //  calculate the next offset for the next page, if applicable
             val nextOffset = offset + limit
             if (nextOffset <= count) {
                 put("next", "/things?offset=$nextOffset&limit=$limit&format=collection")
@@ -79,14 +113,27 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }.also { call.response.header(HttpHeaders.Link, buildLinkHeader(offset, limit)) }
     }
 
+    /**
+     * Builds the Link header for pagination, indicating the next page if applicable.
+     *
+     * @param offset The current offset indicating the starting point of the next page.
+     * @param limit The maximum number of resources to include in a single page.
+     * @return A [String] representing the Link header for pagination.
+     */
     private fun buildLinkHeader(offset: Int?, limit: Int): String {
         return offset?.let { "</things?offset=$it&limit=$limit>; rel=\"next\"" } ?: ""
     }
 
+
+    /**
+     * Looks-up a [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) by its UUID.
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun retrieveThingById(call: ApplicationCall) {
         try {
-            val idValid = Utils.hasValidId(call.parameters["id"])
-            val id = idValid.substringAfterLast("h")
+            val id = Utils.hasValidId(call.parameters["id"])
+            //val id = idValid.substringAfterLast("h")
 
             call.response.header(HttpHeaders.ContentType, "application/td+json")
 
@@ -112,6 +159,11 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }
     }
 
+    /**
+     * Registers an Anonymous [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) with a unique UUID
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun registerAnonymousThing(call: ApplicationCall) {
         try {
             val request = call.request
@@ -179,6 +231,11 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }
     }
 
+    /**
+     * Creates or Updates (if already existing) a [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) with a given `UUID`
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun updateThing(call: ApplicationCall) {
         try {
             val request = call.request
@@ -261,6 +318,11 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }
     }
 
+    /**
+     * Partially updates a [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td)
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun patchThing(call: ApplicationCall) {
         try {
             val id = Utils.hasValidId(call.parameters["id"])
@@ -328,10 +390,15 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         }
     }
 
+    /**
+     * Deletes a [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) from the Triple-Store
+     *
+     * @param call The [ApplicationCall] representing the HTTP request.
+     */
     suspend fun deleteThing(call: ApplicationCall) {
 
-        val requestId = call.parameters["id"] ?: throw ThingException("Missing thing ID")
-        val id = requestId.substringAfterLast("h")
+        val id = call.parameters["id"] ?: throw ThingException("Missing thing ID")
+        //val id = requestId.substringAfterLast("h")
 
         try {
             ts.deleteThingById(id)

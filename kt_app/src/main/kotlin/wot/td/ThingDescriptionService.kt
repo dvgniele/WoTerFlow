@@ -19,7 +19,12 @@ import wot.search.sparql.SparqlService
 import java.time.Instant
 import java.util.*
 
-
+/**
+ * Service responsible for managing [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TDs) within the system.
+ *
+ * @param dbRdf The RDF dataset used for querying and storing [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td).
+ * @param thingsMap A mutable map containing Thing IDs as keys and corresponding Thing Descriptions as values.
+ */
 class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<String, ObjectNode>) {
     private val rdfDataset: Dataset = dbRdf
 
@@ -28,6 +33,11 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
     private val converter = RDFConverter()
 
+    /**
+     * Refreshes the `JSON` representation of a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TD) in the in-memory cache.
+     *
+     * @param graphId The [UUID] of the Thing Description in the RDF [Dataset].
+     */
     private fun refreshJsonDbItem(graphId: String) {
         try {
             val ttlModel = Utils.loadRDFModelById(rdfDataset, graphId)
@@ -36,6 +46,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 val objNode = converter.fromRdf(ttlModel)
                 val thing = converter.toJsonLd11(Utils.toJson(objNode.toString()))
 
+                //  Update the in-memory cache with the refreshed JSON representation
                 thingsMap[graphId] = thing
             } else {
                 thingsMap.remove(graphId)
@@ -45,6 +56,9 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Refreshes the `JSON` representations of all the [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TDs) in the in-memory cache.
+     **/
     fun refreshJsonDb() {
         rdfDataset.begin(TxnType.READ)
 
@@ -55,6 +69,8 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             //  Clear the things map and populate it back with the updated dataset
             thingsMap.clear()
 
+
+            //  Update the in-memory cache with the refreshed JSON representation
             things.forEach { thing ->
                 thing["id"]?.asText()?.let { id ->
                     thingsMap[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)] = thing
@@ -69,6 +85,22 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+
+    /**
+     * Inserts an Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the generated [UUID] along with the TD.
+     *
+     * This function takes an anonymous TD represented as a JSON object, inserts it into the RDF [Dataset],
+     * and generates a unique ID for the TD. The generated ID is returned along with the updated TD containing
+     * the assigned ID.
+     *
+     * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
+     *
+     * @return A [Pair] containing the generated [UUID] and the updated TD with the assigned [UUID].
+     * @throws BadRequestException If the request is invalid.
+     * @throws ThingException If an error occurs during the insertion process.
+     * @throws ValidationException If an error occurs during the validation process.
+     * @throws ConversionException If an error occurs during the conversion process
+     */
     fun insertAnonymousThing(td: ObjectNode): Pair<String, ObjectNode> {
         rdfDataset.begin(TxnType.WRITE)
 
@@ -95,7 +127,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             // JsonLd decoration with missing fields
             decorateThingDescription(tdV11)
 
-            val jsonRdfModel = converter.toRdf(tdV11.toString(), Lang.JSONLD11)
+            val jsonRdfModel = converter.toRdf(tdV11.toString())
 
             //  Performing Syntactic Validation
             val syntacticValidationFailures =
@@ -171,6 +203,20 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Creates or Updates (if already existing) a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the updated [UUID] along with the TD.
+     *
+     * This function takes a TD represented as a JSON object, inserts or updates it into the RDF [Dataset].
+     * The [UUID] is returned along with the updated TD containing the assigned [UUID].
+     *
+     * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
+     *
+     * @return A [Pair] containing the generated [UUID] and the updated TD with the assigned [UUID].
+     * @throws BadRequestException If the request is invalid.
+     * @throws ThingException If an error occurs during the insertion process.
+     * @throws ValidationException If an error occurs during the validation process.
+     * @throws ConversionException If an error occurs during the conversion process
+     */
     fun updateThing(td: ObjectNode): Pair<String, Boolean> {
         val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
             ?: td.get("id")?.takeIf { it.isTextual }?.asText()
@@ -190,7 +236,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
             decorateThingDescription(tdV11)
 
-            val jsonRdfModel = converter.toRdf(tdV11.toPrettyString(), Lang.JSONLD11)
+            val jsonRdfModel = converter.toRdf(tdV11.toPrettyString())
 
             //  Performing Syntactic Validation
             val syntacticValidationFailures =
@@ -254,7 +300,11 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             rdfDataset.abort()
 
             throw e
-        } catch (e: Exception) {
+        } catch (e: ConversionException) {
+            rdfDataset.abort()
+
+            throw ConversionException("Update Thing Error: ${e.message}")
+        }catch (e: Exception) {
             rdfDataset.abort()
 
             throw ThingException("Update Thing Error: ${e.message}")
@@ -267,6 +317,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Partially Updates a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the updated [UUID].
+     *
+     * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
+     *
+     * @return A [String] containing the [UUID] of the updated TD.
+     * @throws BadRequestException If the request is invalid.
+     * @throws ThingException If an error occurs during the insertion process.
+     * @throws ValidationException If an error occurs during the validation process.
+     * @throws ConversionException If an error occurs during the conversion process
+     */
     fun patchThing(td: ObjectNode, id: String): String {
         rdfDataset.begin(TxnType.WRITE)
 
@@ -283,7 +344,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
                 decorateThingDescription(thing)
 
-                val jsonRdfModel = converter.toRdf(thing.toString(), Lang.JSONLD11)
+                val jsonRdfModel = converter.toRdf(thing.toString())
 
                 //  Performing Syntactic Validation
                 val syntacticValidationFailures =
@@ -351,7 +412,11 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             rdfDataset.abort()
 
             throw e
-        } catch (e: Exception) {
+        } catch (e: ConversionException) {
+            rdfDataset.abort()
+
+            throw ConversionException("Patch Thing Error: ${e.message}")
+        }catch (e: Exception) {
             rdfDataset.abort()
 
             throw ThingException("Patch Thing Error: ${e.message}")
@@ -364,6 +429,13 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Deletes a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TD) from the RDF [Dataset] based on the specified [UUID].
+     *
+     * @param id The ID of the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be deleted.
+     *
+     * @throws ThingException If an error occurs during the deletion process.
+     */
     fun deleteThingById(id: String) {
         rdfDataset.begin(TxnType.WRITE)
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
@@ -392,6 +464,14 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Retrieves a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TD) from the in-memory cache based on the specified [UUID].
+     *
+     * @param id The [UUID] of the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be retrieved.
+     *
+     * @return The retrieved [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) as an [ObjectNode], or null if the [UUID] is not found.
+     * @throws ThingException If an error occurs during the retrieval process.
+     */
     fun retrieveThingById(id: String): ObjectNode? {
         try {
             val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
@@ -401,6 +481,14 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Checks if a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) with the specified [UUID] exists in the in-memory cache.
+     *
+     * @param id The [UUID] of the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be checked for existence.
+     *
+     * @return `true` if the Thing exists, `false` otherwise.
+     * @throws ThingException If an error occurs during the retrieval process.
+     */
     fun checkIfThingExists(id: String): Boolean {
         try {
             val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
@@ -410,6 +498,14 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Retrieves a list of all Things from the in-memory cache.
+     *
+     * This function retrieves all Things stored in the in-memory cache and returns them as a list of ObjectNodes.
+     *
+     * @return A list of ObjectNodes representing all Things in the in-memory cache.
+     * @throws ThingException If an error occurs during the retrieval process.
+     */
     fun retrieveAllThings(): List<ObjectNode> {
         try {
             return thingsMap.values.toList()
@@ -418,6 +514,11 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    /**
+     * Decorates a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) with additional information.
+     *
+     * @param td The original [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be decorated.
+     */
     private fun decorateThingDescription(td: ObjectNode) {
         if (!td.has("@type")) {
             val typeArray = td.putArray("@type")
@@ -439,6 +540,11 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         td.set<ObjectNode>("registration", registrationInfo)
     }
 
+    /**
+     * Removes empty properties from an [ObjectNode].
+     *
+     * @param objectNode The ObjectNode to remove empty properties from.
+     */
     private fun removeEmptyProperties(objectNode: ObjectNode) {
         val fieldsToRemove = mutableListOf<String>()
 
