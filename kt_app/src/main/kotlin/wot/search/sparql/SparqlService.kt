@@ -1,5 +1,7 @@
 package wot.search.sparql
 
+import com.fasterxml.jackson.databind.node.ObjectNode
+import com.jayway.jsonpath.JsonPath
 import exceptions.UnsupportedSparqlQueryException
 import org.apache.jena.query.*
 import org.apache.jena.riot.Lang
@@ -10,8 +12,20 @@ import utils.RDFConverter
 import utils.Utils
 import java.io.ByteArrayOutputStream
 
+/**
+ * Service to execute [JsonPath] queries.
+ */
 class SparqlService {
     companion object {
+        /**
+         * Executes the SPARQL query.
+         *
+         * @param query The SPARQL query to execute.
+         * @param format The [ResultsFormat] of the query to execute.
+         * @param dataset The Things [Dataset] to operate on.
+         *
+         * @return [ByteArrayOutputStream] containing the query results.
+         */
         fun executeQuery(query: String, format: ResultsFormat, dataset: Dataset): ByteArrayOutputStream {
             dataset.begin(TxnType.WRITE)
 
@@ -93,6 +107,12 @@ class SparqlService {
             return outputStream
         }
 
+        /**
+         * Executes the update [query] the [Dataset].
+         *
+         * @param query The SPARQL query to execute.
+         * @param dataset The Things [Dataset] to operate on.
+         */
         fun update(query: String, dataset: Dataset) {
             try {
                 val updateQuery = UpdateFactory.create(query)

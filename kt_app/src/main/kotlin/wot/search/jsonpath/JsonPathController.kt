@@ -7,8 +7,17 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 
+/**
+ * Controller responsible for managing JSONPath Syntactic queries.
+ */
 class JsonPathController {
     companion object {
+        /**
+         * Executes the JSONPath query.
+         *
+         * @param call The [ApplicationCall] representing the HTTP request.
+         * @param map The Things map to operate on.
+         */
         suspend fun executeJsonPathQuery(call: ApplicationCall, map: MutableMap<String, ObjectNode>) {
             try {
                 val query = call.request.queryParameters["query"]
