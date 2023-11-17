@@ -1,4 +1,4 @@
-# WoTerFlow: Experimental Kotlin Implementation for WoT (Web of Things)
+# WoTerFlow: Experimental Kotlin Implementation for Web of Things Directory
 
 ---
 
