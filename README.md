@@ -28,7 +28,7 @@ The main goal of this implementation is to provide a high-performance and system
   - [x] Deletion
   - [x] Listing
   - [x] Validation
-- [ ] Events API
+- [x] Events API
   - [x] Creation Event
   - [x] Update Event
   - [x] Deletion Event
