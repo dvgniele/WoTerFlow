@@ -119,7 +119,7 @@ tasks.test {
 
 tasks {
     compileKotlin {
-        kotlinOptions.jvmTarget = "1.8"
+        kotlinOptions.jvmTarget = "17"
     }
 
     processResources {
@@ -127,7 +127,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("WoTerFlow.jar")
+        archiveFileName.set("woterflow.jar")
 
         from("src/main/resources"){
             include("**/*.*")
@@ -136,7 +136,7 @@ tasks {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(17)
 }
 
 application {
