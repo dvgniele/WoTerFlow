@@ -1,18 +1,19 @@
 /build/
 .gradle
-kt_app/out/artifacts/
+./out/artifacts/
 gradle/
 .idea/
 build
 
 tdb-data
 json-data.db
-validation/*.ttl
 
 
-./src/drafts/
+WoTerFlow/src/drafts/
 
-kt_app/src/main/resources/validation/td.ttl
-kt_app/src/main/resources/validation/tdv11.jsonld
-kt_app/src/main/resources/validation/td.jsonld
-kt_app/src/main/resources/validation/README.md
+WoTerFlow/src/main/resources/validation/td.ttl
+WoTerFlow/src/main/resources/validation/tdv11.jsonld
+WoTerFlow/src/main/resources/validation/td.jsonld
+WoTerFlow/src/main/resources/validation/README.md
+
+WoTerFlow/out/
