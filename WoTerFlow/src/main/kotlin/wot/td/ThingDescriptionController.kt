@@ -124,7 +124,6 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         return offset?.let { "</things?offset=$it&limit=$limit>; rel=\"next\"" } ?: ""
     }
 
-
     /**
      * Looks-up a [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) by its UUID.
      *

@@ -9,9 +9,6 @@ import io.ktor.server.plugins.*
 import org.apache.jena.query.*
 import org.apache.jena.rdf.model.*
 import org.apache.jena.riot.Lang
-import org.apache.jena.update.UpdateExecutionFactory
-import org.apache.jena.update.UpdateFactory
-import org.apache.jena.update.UpdateProcessor
 import utils.RDFConverter
 import utils.Utils
 import wot.directory.DirectoryConfig
@@ -85,7 +82,6 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
-
     /**
      * Inserts an Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the generated [UUID] along with the TD.
      *
@@ -96,71 +92,32 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
      *
      * @return A [Pair] containing the generated [UUID] and the updated TD with the assigned [UUID].
-     * @throws BadRequestException If the request is invalid.
-     * @throws ThingException If an error occurs during the insertion process.
-     * @throws ValidationException If an error occurs during the validation process.
-     * @throws ConversionException If an error occurs during the conversion process
+     * @throws Exception If an error occurs during the operation, the transaction is aborted, and the error is propagated.
      */
     fun insertAnonymousThing(td: ObjectNode): Pair<String, ObjectNode> {
-        rdfDataset.begin(TxnType.WRITE)
+        var mapId: String = ""
+        return runCatching {
+            rdfDataset.createWithTransaction {
+                val pair = generateUniqueID()
+                val id = pair.first
+                val graphId = pair.second
 
-        var query = ""
+                td.put("@id", id)
 
-        var uuid = UUID.randomUUID().toString()
-        var id = Utils.strconcat("urn:uuid:", uuid)
-        var graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+                //  Checking the jsonld version and upgrading if needed
+                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
-        try {
-            while (Utils.idExists(thingsMap.keys, graphId)) {
-                uuid = UUID.randomUUID().toString()
-                id = Utils.strconcat("urn:uuid:", uuid)
-                graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-            }
+                //  JsonLd decoration with missing fields
+                decorateThingDescription(tdV11)
 
-            td.put("@id", id)
+                //  Model Validation
+                val jsonRdfModel = converter.toRdf(tdV11.toString())
+                validateThingDescription(jsonRdfModel)
 
-            // Checking the jsonld version and upgrading if needed
-            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-
-            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
-
-            // JsonLd decoration with missing fields
-            decorateThingDescription(tdV11)
-
-            val jsonRdfModel = converter.toRdf(tdV11.toString())
-
-            //  Performing Syntactic Validation
-            val syntacticValidationFailures =
-                ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
-
-            if (syntacticValidationFailures.isNotEmpty()) {
-                val validationErrors = syntacticValidationFailures.map {
-                    ValidationError(
-                        "Syntactic Validation",
-                        it
-                    )
-                }
-                throw ValidationException(validationErrors, "Syntactic Validation Failed")
-            }
-
-            //  Performing Semantic Validation
-            val semanticValidationFailures =
-                ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
-
-            if (semanticValidationFailures.isNotEmpty()) {
-                val validationErrors = semanticValidationFailures.map {
-                    ValidationError(
-                        "Semantic Validation",
-                        it
-                    )
-                }
-                throw ValidationException(validationErrors, "Semantic Validation Failed")
-            }
-
-
-            // Query preparation for RDF data storing
-            val rdfTriplesString = converter.toString(jsonRdfModel)
-            query = """
+                //  Query preparation for RDF data storing
+                val rdfTriplesString = converter.toString(jsonRdfModel)
+                val query = """
                 INSERT DATA {
                     GRAPH <$graphId> {
                         $rdfTriplesString
@@ -168,38 +125,21 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
             """.trimIndent()
 
-            //  Execute query
-            SparqlService.update(query, rdfDataset)
+                // Execute query
+                SparqlService.update(query, rdfDataset)
 
-            synchronized(this) {
-                //  Commit to close db connection
-                rdfDataset.commit()
+                mapId = graphId
+                Pair(id, tdV11)
             }
-
-            return Pair(id, tdV11)
-
-        } catch (e: ThingException) {
-            rdfDataset.abort()
-
-            throw ThingException("An error occurred while storing the thing: ${e.message}")
-        } catch (e: ValidationException) {
-            rdfDataset.abort()
-
-            throw e
-        } catch (e: ConversionException) {
-            rdfDataset.abort()
-
-            throw ConversionException("Create Anonymous Thing Error: ${e.message}")
-        } catch (e: Exception) {
-            rdfDataset.abort()
-
-            throw ThingException("Create new Thing Error: ${e.message}\nquery:\n$query")
-        } finally {
-            rdfDataset.end()
-
-            rdfDataset.begin(TxnType.READ)
-            refreshJsonDbItem(graphId)
-            rdfDataset.end()
+        }.onSuccess {
+            if (mapId.isNotEmpty())
+            {
+                rdfDataset.begin(TxnType.READ)
+                refreshJsonDbItem(mapId)
+                rdfDataset.end()
+            }
+        }.getOrElse { e ->
+            throw handleException(e, "Insert Anonymous Thing")
         }
     }
 
@@ -212,171 +152,32 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
      *
      * @return A [Pair] containing the generated [UUID] and the updated TD with the assigned [UUID].
-     * @throws BadRequestException If the request is invalid.
-     * @throws ThingException If an error occurs during the insertion process.
-     * @throws ValidationException If an error occurs during the validation process.
-     * @throws ConversionException If an error occurs during the conversion process
+     * @throws Exception If an error occurs during the operation, the transaction is aborted, and the error is propagated.
      */
     fun updateThing(td: ObjectNode): Pair<String, Boolean> {
         val id: String = td.get("@id")?.takeIf { it.isTextual }?.asText()
             ?: td.get("id")?.takeIf { it.isTextual }?.asText()
             ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
 
-        rdfDataset.begin(TxnType.WRITE)
-
-        var query = ""
-        var existsAlready = false
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+        val existsAlready = checkIfThingExists(id)
 
-        try {
-            existsAlready = checkIfThingExists(id)
+        return runCatching {
+            rdfDataset.updateWithTransaction {
+                //  Checking the jsonld version and upgrading if needed
+                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
-            val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-            val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+                //  JsonLd decoration with missing fields
+                decorateThingDescription(tdV11)
 
-            decorateThingDescription(tdV11)
-
-            val jsonRdfModel = converter.toRdf(tdV11.toPrettyString())
-
-            //  Performing Syntactic Validation
-            val syntacticValidationFailures =
-                ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
-
-            if (syntacticValidationFailures.isNotEmpty()) {
-                val validationErrors = syntacticValidationFailures.map {
-                    ValidationError(
-                        "Syntactic Validation",
-                        it
-                    )
-                }
-                throw ValidationException(validationErrors, "Syntactic Validation Failed")
-            }
-
-            //  Performing Semantic Validation
-            val semanticValidationFailures =
-                ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
-
-            if (semanticValidationFailures.isNotEmpty()) {
-                val validationErrors = semanticValidationFailures.map {
-                    ValidationError(
-                        "Semantic Validation",
-                        it
-                    )
-                }
-                throw ValidationException(validationErrors, "Semantic Validation Failed")
-            }
-
-            // Query preparation for RDF data storing
-            val rdfTriplesString = converter.toString(jsonRdfModel)
-            query = """
-                DELETE WHERE {
-                    GRAPH <$graphId> {
-                        ?s ?p ?o
-                    }
-                };
-                INSERT DATA {
-                    GRAPH <$graphId> {
-                        $rdfTriplesString
-                    }
-                }
-            """.trimIndent()
-
-            //  Execute query
-            val update = UpdateFactory.create(query)
-            val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
-            updateExecution.execute()
-
-            synchronized(this) {
-                //  Commit to close db connection
-                rdfDataset.commit()
-            }
-
-            return Pair(id, existsAlready)
-        } catch (e: ThingException) {
-            rdfDataset.abort()
-
-            throw ThingException("An error occurred while updating the thing: ${e.message}")
-        } catch (e: ValidationException) {
-            rdfDataset.abort()
-
-            throw e
-        } catch (e: ConversionException) {
-            rdfDataset.abort()
-
-            throw ConversionException("Update Thing Error: ${e.message}")
-        }catch (e: Exception) {
-            rdfDataset.abort()
-
-            throw ThingException("Update Thing Error: ${e.message}")
-        } finally {
-            rdfDataset.end()
-
-            rdfDataset.begin(TxnType.READ)
-            refreshJsonDbItem(graphId)
-            rdfDataset.end()
-        }
-    }
-
-    /**
-     * Partially Updates a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the updated [UUID].
-     *
-     * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
-     *
-     * @return A [String] containing the [UUID] of the updated TD.
-     * @throws BadRequestException If the request is invalid.
-     * @throws ThingException If an error occurs during the insertion process.
-     * @throws ValidationException If an error occurs during the validation process.
-     * @throws ConversionException If an error occurs during the conversion process
-     */
-    fun patchThing(td: ObjectNode, id: String): String {
-        rdfDataset.begin(TxnType.WRITE)
-
-        var query = ""
-        val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-
-        try {
-            val thing = retrieveThingById(id)
-
-            if (thing != null) {
-                thing.setAll<ObjectNode>(td)
-
-                removeEmptyProperties(thing)
-
-                decorateThingDescription(thing)
-
-                val jsonRdfModel = converter.toRdf(thing.toString())
-
-                //  Performing Syntactic Validation
-                val syntacticValidationFailures =
-                    ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
-
-                if (syntacticValidationFailures.isNotEmpty()) {
-                    val validationErrors = syntacticValidationFailures.map {
-                        ValidationError(
-                            "Syntactic Validation",
-                            it
-                        )
-                    }
-                    throw ValidationException(validationErrors, "Syntactic Validation Failed")
-                }
-
-                //  Performing Semantic Validation
-                val semanticValidationFailures =
-                    ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
-
-                if (semanticValidationFailures.isNotEmpty()) {
-                    val validationErrors = semanticValidationFailures.map {
-                        ValidationError(
-                            "Semantic Validation",
-                            it
-                        )
-                    }
-                    throw ValidationException(validationErrors, "Semantic Validation Failed")
-                }
+                //  Model Validation
+                val jsonRdfModel = converter.toRdf(tdV11.toString())
+                validateThingDescription(jsonRdfModel)
 
                 // Query preparation for RDF data storing
                 val rdfTriplesString = converter.toString(jsonRdfModel)
-                query = """
+                val query = """
                     DELETE WHERE {
                         GRAPH <$graphId> {
                             ?s ?p ?o
@@ -389,43 +190,77 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     }
                 """.trimIndent()
 
-                //  Execute query
-                val update = UpdateFactory.create(query)
-                val updateExecution: UpdateProcessor = UpdateExecutionFactory.create(update, rdfDataset)
-                updateExecution.execute()
+                // Execute query
+                SparqlService.update(query, rdfDataset)
 
-                synchronized(this) {
-                    //  Commit to close db connection
-                    rdfDataset.commit()
-                }
-
-                return id
-            } else {
-                throw ThingException("Thing with id: $graphId does not exists.")
+                Pair(id, existsAlready)
             }
+        }.onSuccess {
+            if (graphId.isNotEmpty())
+            {
+                rdfDataset.begin(TxnType.READ)
+                refreshJsonDbItem(graphId)
+                rdfDataset.end()
+            }
+        }.getOrElse {e ->
+            throw handleException(e, "Update Thing")
+        }
+    }
 
-        } catch (e: ThingException) {
-            rdfDataset.abort()
+    /**
+     * Partially Updates a [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) into the RDF [Dataset] and returns the updated [UUID].
+     *
+     * @param td The Anonymous [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be inserted.
+     *
+     * @return A [String] containing the [UUID] of the updated TD.
+     * @throws Exception If an error occurs during the operation, the transaction is aborted, and the error is propagated.
+     */
+    fun patchThing(td: ObjectNode, id: String): String {
+        val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
-            throw ThingException("An error occurred while patching the thing: ${e.message}")
-        } catch (e: ValidationException) {
-            rdfDataset.abort()
+        return runCatching {
+            rdfDataset.patchWithTransaction {
 
-            throw e
-        } catch (e: ConversionException) {
-            rdfDataset.abort()
+                val thing = retrieveThingById(id)
+                    ?: throw ThingException("Thing with id: $graphId does not exist.")
 
-            throw ConversionException("Patch Thing Error: ${e.message}")
-        }catch (e: Exception) {
-            rdfDataset.abort()
+                thing.setAll<ObjectNode>(td)
+                removeEmptyProperties(thing)
+                decorateThingDescription(thing)
 
-            throw ThingException("Patch Thing Error: ${e.message}")
-        } finally {
-            rdfDataset.end()
+                //  Model Validation
+                val jsonRdfModel = converter.toRdf(thing.toString())
+                validateThingDescription(jsonRdfModel)
 
-            rdfDataset.begin(TxnType.READ)
-            refreshJsonDbItem(id)
-            rdfDataset.end()
+                // Query preparation for RDF data storing
+                val rdfTriplesString = converter.toString(jsonRdfModel)
+                val query = """
+                DELETE WHERE {
+                    GRAPH <$graphId> {
+                        ?s ?p ?o
+                    }
+                };
+                INSERT DATA {
+                    GRAPH <$graphId> {
+                        $rdfTriplesString
+                    }
+                }
+            """.trimIndent()
+
+                // Execute query
+                SparqlService.update(query, rdfDataset)
+
+                id
+            }
+        }.onSuccess {
+            if (graphId.isNotEmpty())
+            {
+                rdfDataset.begin(TxnType.READ)
+                refreshJsonDbItem(graphId)
+                rdfDataset.end()
+            }
+        }.getOrElse { e ->
+            throw handleException(e, "Patch Thing")
         }
     }
 
@@ -434,33 +269,22 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      *
      * @param id The ID of the [Thing Description](https://www.w3.org/TR/wot-thing-description/#introduction-td) to be deleted.
      *
-     * @throws ThingException If an error occurs during the deletion process.
+     * @throws Exception If an error occurs during the operation, the transaction is aborted, and the error is propagated.
      */
     fun deleteThingById(id: String) {
-        rdfDataset.begin(TxnType.WRITE)
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
 
-        try {
-            val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
-
-            val deleteUpdate = UpdateFactory.create(deleteQuery)
-            val deleteExecution: UpdateProcessor = UpdateExecutionFactory.create(deleteUpdate, rdfDataset)
-            deleteExecution.execute()
-
-            synchronized(this) {
-                //  Commit to close db connection
-                rdfDataset.commit()
+        runCatching {
+            rdfDataset.deleteWithTransaction {
+                val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
+                SparqlService.update(deleteQuery, rdfDataset)
             }
-        } catch (e: Exception) {
-            rdfDataset.abort()
-
-            throw ThingException("An error occurred while Deleting the thing: ${e.message}")
-        } finally {
-            rdfDataset.end()
-
+        }.onSuccess {
             rdfDataset.begin(TxnType.READ)
             refreshJsonDbItem(graphId)
             rdfDataset.end()
+        }.getOrElse { e ->
+            throw handleException(e, "Delete Thing")
         }
     }
 
@@ -558,6 +382,178 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
 
         fieldsToRemove.forEach {
             objectNode.remove(it)
+        }
+    }
+
+    /**
+     * Generates a unique ID and corresponding graph ID for a Thing Description.
+     *
+     * @return A [Pair] containing the generated ID and its corresponding graph ID.
+     */
+    private fun generateUniqueID(): Pair<String, String> {
+        var uuid: String
+        var id: String
+        var graphId: String
+
+        do {
+            uuid = UUID.randomUUID().toString()
+            id = Utils.strconcat("urn:uuid:", uuid)
+            graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+        } while (Utils.idExists(thingsMap.keys, graphId))
+
+        return Pair(id, graphId)
+    }
+
+    /**
+     * Performs the Syntactic and Semantic validations on an RDF [Model]
+     *
+     * @param jsonRdfModel The RDF [Model] representing the Thing Description in JSON-LD format.
+     *
+     * @throws ValidationException If syntactic or semantic validation fails, containing a list of validation errors.
+     */
+    private fun validateThingDescription(jsonRdfModel: Model) {
+        //  Performing Syntactic Validation
+        val syntacticValidationFailures =
+            ThingDescriptionValidation.validateSyntactic(jsonRdfModel, xmlShapesModel)
+
+        if (syntacticValidationFailures.isNotEmpty()) {
+            val validationErrors = syntacticValidationFailures.map {
+                ValidationError(
+                    "Syntactic Validation",
+                    it
+                )
+            }
+            throw ValidationException(validationErrors, "Syntactic Validation Failed")
+        }
+
+        //  Performing Semantic Validation
+        val semanticValidationFailures =
+            ThingDescriptionValidation.validateSemantic(jsonRdfModel, ttlContextModel)
+
+        if (semanticValidationFailures.isNotEmpty()) {
+            val validationErrors = semanticValidationFailures.map {
+                ValidationError(
+                    "Semantic Validation",
+                    it
+                )
+            }
+            throw ValidationException(validationErrors, "Semantic Validation Failed")
+        }
+    }
+
+    /**
+     * Extension function to [Dataset] class. Executes the specified action within a write transaction on the dataset, ensuring proper transaction management.
+     *
+     * @param action The action to be executed within the transaction, returning a [Pair] of [String] and [ObjectNode].
+     *
+     * @return A [Pair] representing the result of the action and the created graph's ID.
+     * @throws Exception If an error occurs during the execution of the action, the transaction is aborted, and the error is propagated.
+     */
+    private inline fun Dataset.createWithTransaction(action: () -> Pair<String, ObjectNode>) : Pair<String, ObjectNode> {
+        this.begin(TxnType.WRITE)
+        return try {
+            synchronized(this) {
+                val result = action()
+                this.commit()
+                result
+            }
+        } catch (e: Exception) {
+            this.abort()
+            throw e
+        } finally {
+            this.end()
+        }
+    }
+
+    /**
+     * Extension function to [Dataset] class. Executes the specified action within a write transaction on the dataset, ensuring proper transaction management.
+     *
+     * @param action The action to be executed within the transaction, returning a [Pair] of [String] and [Boolean].
+     *
+     * @return A [Pair] representing the result of the action and a [Boolean] indicating whether the resource existed before the update.
+     * @throws Exception If an error occurs during the execution of the action, the transaction is aborted, and the error is propagated.
+     */
+    private inline fun Dataset.updateWithTransaction(action: () -> Pair<String, Boolean>) : Pair<String, Boolean> {
+        this.begin(TxnType.WRITE)
+        return try {
+            synchronized(this) {
+                val result = action()
+                this.commit()
+                result
+            }
+        } catch (e: Exception) {
+            this.abort()
+            throw e
+        } finally {
+            this.end()
+        }
+    }
+
+    /**
+     * Extension function to [Dataset] class. Executes the specified action within a write transaction on the dataset, ensuring proper transaction management.
+     *
+     * @param action The action to be executed within the transaction, returning the ID of the patched resource.
+     *
+     * @return The ID of the patched resource.
+     * @throws Exception If an error occurs during the execution of the action, the transaction is aborted, and the error is propagated.
+     */
+    private inline fun Dataset.patchWithTransaction(action: () -> String) : String {
+        this.begin(TxnType.WRITE)
+        return try {
+            synchronized(this) {
+                val result = action()
+                this.commit()
+                result
+            }
+        } catch (e: Exception) {
+            this.abort()
+            throw e
+        } finally {
+            this.end()
+        }
+    }
+
+    /**
+     * Extension function to [Dataset] class. Executes the specified action within a write transaction on the dataset, ensuring proper transaction management.
+     *
+     * @param action The action to be executed within the transaction.
+     *
+     * @throws Exception If an error occurs during the execution of the action, the transaction is aborted, and the error is propagated.
+     */
+    private inline fun Dataset.deleteWithTransaction(action: () -> Unit) {
+        this.begin(TxnType.WRITE)
+        try {
+            synchronized(this) {
+                action()
+                this.commit()
+            }
+        } catch (e: Exception) {
+            this.abort()
+            throw e
+        } finally {
+            this.end()
+        }
+    }
+
+    /**
+     * Handles exceptions by throwing a typed exception based on the given [Throwable] type.
+     *
+     * @param e The exception to be handled.
+     * @param opMessage A message indicating the operation being performed when the exception occurred.
+     *
+     * @throws T A typed exception based on the [Throwable] type.
+     * @throws BadRequestException If the request is invalid.
+     * @throws ThingException If an error occurs during the insertion process.
+     * @throws ValidationException If an error occurs during the validation process.
+     * @throws ConversionException If an error occurs during the conversion process
+     */
+    private inline fun <reified T: Exception> handleException(e: Throwable, opMessage: String): T {
+        when (e) {
+            is BadRequestException -> throw BadRequestException("Invalid or missing @id field in the JSON body.")
+            is ThingException -> throw ThingException("An error occurred while performing the $opMessage operation: ${e.message}")
+            is ValidationException -> throw ValidationException(e.errors, e.message)
+            is ConversionException -> throw ConversionException("An error occurred while performing the $opMessage operation: ${e.message}")
+            else -> throw  ThingException("An error occurred while performing the $opMessage operation: ${e.message}.")
         }
     }
 }
