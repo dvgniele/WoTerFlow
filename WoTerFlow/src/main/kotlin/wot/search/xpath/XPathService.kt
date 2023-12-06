@@ -9,12 +9,15 @@ import com.jayway.jsonpath.JsonPath
 import java.io.StringReader
 import net.sf.saxon.s9api.Processor
 import net.sf.saxon.s9api.XdmNode
+import net.sf.saxon.s9api.XdmValue
 import utils.Utils
 import wot.directory.DirectoryConfig
 import javax.xml.transform.stream.StreamSource
 
 class XPathService {
     companion object {
+        val processor = Processor(false)
+
         /**
          * Executes the XPath query.
          *
@@ -23,50 +26,70 @@ class XPathService {
          *
          * @return [List] of [ObjectNode] obtained via the XPath query.
          */
-        fun executeQuery(query: String, map: MutableMap<String, ObjectNode>): List<ObjectNode> {
-            val matchingTDs = mutableListOf<ObjectNode>()
+        fun executeQuery(query: String, map: Map<String, ObjectNode>): List<ObjectNode> {
+            return map.values
+                .mapNotNull { td ->
+                    val jsonNode = ObjectMapper().valueToTree<JsonNode>(td)
+                    val xmlString = XmlMapper().writeValueAsString(jsonNode)
+                        .replace("@", "")
+                    val tdDocument = buildXmlDocument(xmlString)
+                    val results = evaluateXPath(query, tdDocument)
+                    extractMatchingTD(results, map)
+                }
+        }
 
-            val processor = Processor(false)
+        /**
+         * Builds an [XdmNode] representing an XML document from the given XML string.
+         *
+         * @param xmlString A string containing XML content.
+         *
+         * @return An [XdmNode] representing the XML document.
+         */
+        private fun buildXmlDocument(xmlString: String): XdmNode {
+            val documentBuilder = processor.newDocumentBuilder()
+            val xmlSource = StreamSource(StringReader(xmlString))
+
+            return documentBuilder.build(xmlSource)
+        }
+
+        /**
+         * Evaluates an XPath query on the provided [XdmNode] and returns the result as an [XdmValue].
+         *
+         * @param query The XPath query to be evaluated.
+         * @param tdDocument An [XdmNode] representing the XML document on which the XPath query will be executed.
+         *
+         * @return An [XdmValue] containing the result of the XPath query.
+         */
+        private fun evaluateXPath(query: String, tdDocument: XdmNode): XdmValue {
             val compiler = processor.newXPathCompiler()
             compiler.languageVersion = "3.1"
+            val xpathSelector = compiler.compile(query).load()
+            xpathSelector.contextItem = tdDocument
 
+            return xpathSelector.evaluate()
+        }
 
-            for (td in map.values){
-                val objectMapper = ObjectMapper()
-                val jsonNode = objectMapper.valueToTree<ObjectNode>(td)
-
-                val xmlMapper = XmlMapper()
-
-                val xmlString = xmlMapper.writeValueAsString(jsonNode).replace("@", "")
-
-                val documentBuilder = processor.newDocumentBuilder()
-                val xmlSource = StreamSource(StringReader(xmlString))
-                val tdDocument = documentBuilder.build(xmlSource)
-
-                val xpathSelector = compiler.compile(query).load()
-
-                xpathSelector.contextItem = tdDocument
-
-                val results = xpathSelector.evaluate()
-
-                if (results is XdmNode) {
-                    val resultJson = convertXdmToJson(results)
-                    if (resultJson is ObjectNode) {
-                        matchingTDs.add(resultJson)
+        /**
+         * Extracts a matching [ObjectNode] from the provided map based on the results of an XQuery evaluation.
+         *
+         * @param results An [XdmValue] containing the results of an XQuery evaluation.
+         * @param map A map where keys are graph IDs (prefixed with [DirectoryConfig.GRAPH_PREFIX]) and values are [ObjectNode] instances.
+         *
+         * @return An [ObjectNode] from the map corresponding to the "id" property extracted from the [XdmValue].
+         * Returns null if the [XdmValue] does not contain a valid [ObjectNode].
+         */
+        private fun extractMatchingTD(results: XdmValue, map: Map<String, ObjectNode>): ObjectNode? {
+            if (results is XdmNode) {
+                val resultJson = convertXdmToJson(results)
+                return if (resultJson is ObjectNode) {
+                    resultJson["id"]?.textValue().let {
+                        map[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, it!!)] ?: throw NoSuchElementException("")
                     }
+                } else {
+                    null
                 }
             }
-
-            //  Retrieves mapped Things Description based on the provided list of matching TDs.
-            return matchingTDs.mapNotNull {
-                it["id"]?.textValue()?.let {
-                    id -> map[Utils.strconcat(
-                        DirectoryConfig.GRAPH_PREFIX,
-                        id
-                    )]
-                }
-            }
-
+            return null
         }
 
         /**
