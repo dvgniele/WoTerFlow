@@ -54,6 +54,7 @@ class RDFConverter {
         options11.isExplicit = false
         options11.isCompactArrays = true
         options11.isCompactToRelative = true
+        options11.isProduceGeneralizedRdf = true
     }
 
     /**
@@ -106,10 +107,8 @@ class RDFConverter {
                 thing.set<ArrayNode>("security", security)
             }
 
-            val context = thing.get("@context")
-
             //  `context` is being updated to JSON-LD v1.1.
-            when (context) {
+            when (val context = thing.get("@context")) {
                 is ObjectNode -> {
                     val modifiedContext = context.deepCopy()
                     if (modifiedContext.has(contextV10)) {
@@ -200,7 +199,7 @@ class RDFConverter {
         try {
             val document = JsonDocument.of(jsonLdString.reader())
 
-            val expanded = JsonLd.expand(document).options(options11)
+            val expanded = JsonLd.expand(document)//.options(options11)
             val expandedDocument = expanded.get()
 
             val model = ModelFactory.createDefaultModel()
