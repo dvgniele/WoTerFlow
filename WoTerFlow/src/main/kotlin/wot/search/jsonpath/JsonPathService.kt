@@ -19,18 +19,16 @@ class JsonPathService {
          *
          * @return [List] of [ObjectNode] obtained via the [JsonPath] query.
          */
-        fun executeQuery(query: JsonPath, map: MutableMap<String, ObjectNode>): List<ObjectNode> {
+        fun executeQuery(query: JsonPath, map: Map<String, ObjectNode>): List<ObjectNode> {
             val jsonPathConfig = Configuration.defaultConfiguration()
 
-            val matchingTDs = map.values.filter { td ->
+            return map.values.filter { td ->
                 val matchingNodes = JsonPath.using(jsonPathConfig)
                     .parse(td.toString())
                     .read(query) as List<ObjectNode>
 
                 matchingNodes.isNotEmpty()
             }
-
-            return matchingTDs
         }
 
         /**

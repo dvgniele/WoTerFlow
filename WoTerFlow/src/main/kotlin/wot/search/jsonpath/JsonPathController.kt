@@ -18,7 +18,7 @@ class JsonPathController {
          * @param call The [ApplicationCall] representing the HTTP request.
          * @param map The Things map to operate on.
          */
-        suspend fun executeJsonPathQuery(call: ApplicationCall, map: MutableMap<String, ObjectNode>) {
+        suspend fun executeJsonPathQuery(call: ApplicationCall, map: Map<String, ObjectNode>) {
             try {
                 val query = call.request.queryParameters["query"]
                 if (query.isNullOrBlank()) {
