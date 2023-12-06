@@ -1,6 +1,7 @@
 package wot.td
 
 import com.fasterxml.jackson.databind.node.ObjectNode
+import com.github.jsonldjava.core.RDFDataset
 import errors.ValidationError
 import exceptions.ConversionException
 import exceptions.ThingException
@@ -96,28 +97,29 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      */
     fun insertAnonymousThing(td: ObjectNode): Pair<String, ObjectNode> {
         var mapId: String = ""
-        return runCatching {
-            rdfDataset.createWithTransaction {
-                val pair = generateUniqueID()
-                val id = pair.first
-                val graphId = pair.second
+        synchronized(this) {
+            return runCatching {
+                rdfDataset.createWithTransaction {
+                    val pair = generateUniqueID()
+                    val id = pair.first
+                    val graphId = pair.second
 
-                td.put("@id", id)
+                    td.put("@id", id)
 
-                //  Checking the jsonld version and upgrading if needed
-                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+                    //  Checking the jsonld version and upgrading if needed
+                    val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+                    val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
-                //  JsonLd decoration with missing fields
-                decorateThingDescription(tdV11)
+                    //  JsonLd decoration with missing fields
+                    decorateThingDescription(tdV11)
 
-                //  Model Validation
-                val jsonRdfModel = converter.toRdf(tdV11.toString())
-                validateThingDescription(jsonRdfModel)
+                    //  Model Validation
+                    val jsonRdfModel = converter.toRdf(tdV11.toString())
+                    validateThingDescription(jsonRdfModel)
 
-                //  Query preparation for RDF data storing
-                val rdfTriplesString = converter.toString(jsonRdfModel)
-                val query = """
+                    //  Query preparation for RDF data storing
+                    val rdfTriplesString = converter.toString(jsonRdfModel)
+                    val query = """
                 INSERT DATA {
                     GRAPH <$graphId> {
                         $rdfTriplesString
@@ -125,21 +127,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
             """.trimIndent()
 
-                // Execute query
-                SparqlService.update(query, rdfDataset)
+                    // Execute query
+                    SparqlService.update(query, rdfDataset)
 
-                mapId = graphId
-                Pair(id, tdV11)
+                    mapId = graphId
+                    Pair(id, tdV11)
+                }
+            }.onSuccess {
+                refreshJsonDbItemIfNotEmpty(mapId)
+            }.getOrElse { e ->
+                throw handleException(e, "Insert Anonymous Thing")
             }
-        }.onSuccess {
-            if (mapId.isNotEmpty())
-            {
-                rdfDataset.begin(TxnType.READ)
-                refreshJsonDbItem(mapId)
-                rdfDataset.end()
-            }
-        }.getOrElse { e ->
-            throw handleException(e, "Insert Anonymous Thing")
         }
     }
 
@@ -160,24 +158,26 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
             ?: throw BadRequestException("Invalid or missing @id field in the JSON body.")
 
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-        val existsAlready = checkIfThingExists(id)
 
-        return runCatching {
-            rdfDataset.updateWithTransaction {
-                //  Checking the jsonld version and upgrading if needed
-                val tdVersion11p = Utils.isJsonLd11OrGreater(td)
-                val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
+        synchronized(this) {
+            val existsAlready = checkIfThingExists(id)
 
-                //  JsonLd decoration with missing fields
-                decorateThingDescription(tdV11)
+            return runCatching {
+                rdfDataset.updateWithTransaction {
+                    //  Checking the jsonld version and upgrading if needed
+                    val tdVersion11p = Utils.isJsonLd11OrGreater(td)
+                    val tdV11 = if (!tdVersion11p) converter.toJsonLd11(td) else td
 
-                //  Model Validation
-                val jsonRdfModel = converter.toRdf(tdV11.toString())
-                validateThingDescription(jsonRdfModel)
+                    //  JsonLd decoration with missing fields
+                    decorateThingDescription(tdV11)
 
-                // Query preparation for RDF data storing
-                val rdfTriplesString = converter.toString(jsonRdfModel)
-                val query = """
+                    //  Model Validation
+                    val jsonRdfModel = converter.toRdf(tdV11.toString())
+                    validateThingDescription(jsonRdfModel)
+
+                    // Query preparation for RDF data storing
+                    val rdfTriplesString = converter.toString(jsonRdfModel)
+                    val query = """
                     DELETE WHERE {
                         GRAPH <$graphId> {
                             ?s ?p ?o
@@ -190,20 +190,16 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     }
                 """.trimIndent()
 
-                // Execute query
-                SparqlService.update(query, rdfDataset)
+                    // Execute query
+                    SparqlService.update(query, rdfDataset)
 
-                Pair(id, existsAlready)
+                    Pair(id, existsAlready)
+                }
+            }.onSuccess {
+                refreshJsonDbItemIfNotEmpty(graphId)
+            }.getOrElse { e ->
+                throw handleException(e, "Update Thing")
             }
-        }.onSuccess {
-            if (graphId.isNotEmpty())
-            {
-                rdfDataset.begin(TxnType.READ)
-                refreshJsonDbItem(graphId)
-                rdfDataset.end()
-            }
-        }.getOrElse {e ->
-            throw handleException(e, "Update Thing")
         }
     }
 
@@ -217,24 +213,25 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      */
     fun patchThing(td: ObjectNode, id: String): String {
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
+        synchronized(this) {
 
-        return runCatching {
-            rdfDataset.patchWithTransaction {
+            return runCatching {
+                rdfDataset.patchWithTransaction {
 
-                val thing = retrieveThingById(id)
-                    ?: throw ThingException("Thing with id: $graphId does not exist.")
+                    val thing = retrieveThingById(id)
+                        ?: throw ThingException("Thing with id: $graphId does not exist.")
 
-                thing.setAll<ObjectNode>(td)
-                removeEmptyProperties(thing)
-                decorateThingDescription(thing)
+                    thing.setAll<ObjectNode>(td)
+                    removeEmptyProperties(thing)
+                    decorateThingDescription(thing)
 
-                //  Model Validation
-                val jsonRdfModel = converter.toRdf(thing.toString())
-                validateThingDescription(jsonRdfModel)
+                    //  Model Validation
+                    val jsonRdfModel = converter.toRdf(thing.toString())
+                    validateThingDescription(jsonRdfModel)
 
-                // Query preparation for RDF data storing
-                val rdfTriplesString = converter.toString(jsonRdfModel)
-                val query = """
+                    // Query preparation for RDF data storing
+                    val rdfTriplesString = converter.toString(jsonRdfModel)
+                    val query = """
                 DELETE WHERE {
                     GRAPH <$graphId> {
                         ?s ?p ?o
@@ -247,20 +244,16 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
             """.trimIndent()
 
-                // Execute query
-                SparqlService.update(query, rdfDataset)
+                    // Execute query
+                    SparqlService.update(query, rdfDataset)
 
-                id
+                    id
+                }
+            }.onSuccess {
+                refreshJsonDbItemIfNotEmpty(graphId)
+            }.getOrElse { e ->
+                throw handleException(e, "Patch Thing")
             }
-        }.onSuccess {
-            if (graphId.isNotEmpty())
-            {
-                rdfDataset.begin(TxnType.READ)
-                refreshJsonDbItem(graphId)
-                rdfDataset.end()
-            }
-        }.getOrElse { e ->
-            throw handleException(e, "Patch Thing")
         }
     }
 
@@ -273,18 +266,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
      */
     fun deleteThingById(id: String) {
         val graphId = Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, id)
-
-        runCatching {
-            rdfDataset.deleteWithTransaction {
-                val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
-                SparqlService.update(deleteQuery, rdfDataset)
+        synchronized(this) {
+            runCatching {
+                rdfDataset.deleteWithTransaction {
+                    val deleteQuery = "DELETE WHERE { GRAPH <$graphId> { ?s ?p ?o } }"
+                    SparqlService.update(deleteQuery, rdfDataset)
+                }
+            }.onSuccess {
+                refreshJsonDbItemIfNotEmpty(graphId)
+            }.getOrElse { e ->
+                throw handleException(e, "Delete Thing")
             }
-        }.onSuccess {
-            rdfDataset.begin(TxnType.READ)
-            refreshJsonDbItem(graphId)
-            rdfDataset.end()
-        }.getOrElse { e ->
-            throw handleException(e, "Delete Thing")
         }
     }
 
@@ -441,6 +433,14 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
         }
     }
 
+    private fun refreshJsonDbItemIfNotEmpty(graphId: String){
+        graphId.takeIf { it.isNotEmpty() }?.let {
+            rdfDataset.begin(TxnType.READ)
+            refreshJsonDbItem(it)
+            rdfDataset.end()
+        }
+    }
+
     /**
      * Extension function to [Dataset] class. Executes the specified action within a write transaction on the dataset, ensuring proper transaction management.
      *
@@ -452,11 +452,9 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     private inline fun Dataset.createWithTransaction(action: () -> Pair<String, ObjectNode>) : Pair<String, ObjectNode> {
         this.begin(TxnType.WRITE)
         return try {
-            synchronized(this) {
-                val result = action()
-                this.commit()
-                result
-            }
+            val result = action()
+            this.commit()
+            result
         } catch (e: Exception) {
             this.abort()
             throw e
@@ -476,11 +474,9 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     private inline fun Dataset.updateWithTransaction(action: () -> Pair<String, Boolean>) : Pair<String, Boolean> {
         this.begin(TxnType.WRITE)
         return try {
-            synchronized(this) {
-                val result = action()
-                this.commit()
-                result
-            }
+            val result = action()
+            this.commit()
+            result
         } catch (e: Exception) {
             this.abort()
             throw e
@@ -500,11 +496,9 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     private inline fun Dataset.patchWithTransaction(action: () -> String) : String {
         this.begin(TxnType.WRITE)
         return try {
-            synchronized(this) {
-                val result = action()
-                this.commit()
-                result
-            }
+            val result = action()
+            this.commit()
+            result
         } catch (e: Exception) {
             this.abort()
             throw e
@@ -523,10 +517,8 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
     private inline fun Dataset.deleteWithTransaction(action: () -> Unit) {
         this.begin(TxnType.WRITE)
         try {
-            synchronized(this) {
-                action()
-                this.commit()
-            }
+            action()
+            this.commit()
         } catch (e: Exception) {
             this.abort()
             throw e
