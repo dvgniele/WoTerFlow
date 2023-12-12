@@ -25,46 +25,15 @@ sourceSets {
     }
 }
 dependencies {
-    testImplementation(kotlin("test"))
-
-    // Rest Assured
-    // https://mvnrepository.com/artifact/io.rest-assured/rest-assured
-    implementation("io.rest-assured:rest-assured:5.3.0")
-
-    // https://mvnrepository.com/artifact/io.rest-assured/json-path
-    testImplementation("io.rest-assured:json-path:5.3.0")
-
-
-    // https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp
-    testImplementation("com.squareup.okhttp3:okhttp:4.11.0")
-
-
-    // JUnit
-    // https://mvnrepository.com/artifact/junit/junit
-    //testImplementation("junit:junit:4.13.2")
-
-    // https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api
-    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
-
-
     // Jena
     // https://mvnrepository.com/artifact/org.apache.jena/jena-core
     implementation("org.apache.jena:jena-core:$jena_version")
-
-    // https://mvnrepository.com/artifact/org.apache.jena/jena-arq
-    implementation("org.apache.jena:jena-arq:$jena_version")
-
-    // https://mvnrepository.com/artifact/org.apache.jena/jena-tdb
-    implementation("org.apache.jena:jena-tdb:$jena_version")
 
     // https://mvnrepository.com/artifact/org.apache.jena/jena-shacl
     implementation("org.apache.jena:jena-shacl:$jena_version")
 
     // https://mvnrepository.com/artifact/org.apache.jena/jena-tdb2
     implementation("org.apache.jena:jena-tdb2:$jena_version")
-
-    // https://mvnrepository.com/artifact/com.github.erosb/everit-json-schema
-    //implementation("com.github.erosb:everit-json-schema:1.14.2")
 
     // https://mvnrepository.com/artifact/org.apache.jena/jena-fuseki
     //implementation("org.apache.jena:jena-fuseki-main:$jena_version")
@@ -74,7 +43,6 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.apicatalog/titanium-json-ld
     implementation("com.apicatalog:titanium-json-ld:1.3.2")
-
 
     // KTOR
     // https://mvnrepository.com/artifact/io.ktor/ktor-server-core
@@ -110,6 +78,28 @@ dependencies {
 
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
     implementation("ch.qos.logback:logback-classic:1.4.11")
+
+    //  TESTING
+    testImplementation(kotlin("test"))
+
+    // Rest Assured
+    // https://mvnrepository.com/artifact/io.rest-assured/rest-assured
+    testImplementation("io.rest-assured:rest-assured:5.3.0")
+
+    // https://mvnrepository.com/artifact/io.rest-assured/json-path
+    testImplementation("io.rest-assured:json-path:5.3.0")
+
+
+    // https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp
+    testImplementation("com.squareup.okhttp3:okhttp:4.11.0")
+
+
+    // JUnit
+    // https://mvnrepository.com/artifact/junit/junit
+    //testImplementation("junit:junit:4.13.2")
+
+    // https://mvnrepository.com/artifact/org.junit.jupiter/junit-jupiter-api
+    testImplementation("org.junit.jupiter:junit-jupiter-api:5.9.3")
 
 }
 

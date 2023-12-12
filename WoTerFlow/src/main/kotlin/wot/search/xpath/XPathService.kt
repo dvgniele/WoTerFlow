@@ -83,7 +83,7 @@ class XPathService {
                 val resultJson = convertXdmToJson(results)
                 return if (resultJson is ObjectNode) {
                     resultJson["id"]?.textValue().let {
-                        map[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, it!!)] ?: throw NoSuchElementException("")
+                        map[Utils.strconcat(DirectoryConfig.GRAPH_PREFIX, it!!)] ?: throw NoSuchElementException("No Such Element: id -> $it")
                     }
                 } else {
                     null
