@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.jayway.jsonpath.Configuration
 import com.jayway.jsonpath.InvalidPathException
 import com.jayway.jsonpath.JsonPath
-import io.ktor.server.application.*
 
 /**
  * Service to execute [JsonPath] queries.

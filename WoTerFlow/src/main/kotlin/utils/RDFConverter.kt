@@ -21,7 +21,6 @@ import exceptions.ThingException
 import jakarta.json.JsonObject
 import wot.directory.DirectoryConfig.Companion.contextV10
 import wot.directory.DirectoryConfig.Companion.contextV11
-import java.io.StringReader
 import java.io.StringWriter
 import java.net.URI
 

@@ -3,7 +3,8 @@ package wot.search.jsonpath
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.jayway.jsonpath.InvalidPathException
 import exceptions.MissingQueryParameterException
-import io.ktor.http.*
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 

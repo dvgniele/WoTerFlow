@@ -1,6 +1,6 @@
 package wot.events
 
-import io.ktor.util.*
+import io.ktor.util.toLowerCasePreservingASCIIRules
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicLong

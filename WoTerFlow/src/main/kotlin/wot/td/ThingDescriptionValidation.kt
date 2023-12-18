@@ -1,12 +1,9 @@
 package wot.td
 
-import com.github.jsonldjava.utils.JsonUtils
-import exceptions.ValidationException
 import org.apache.jena.rdf.model.Model
 import org.apache.jena.shacl.ShaclValidator
 import org.apache.jena.shacl.Shapes
 import org.apache.jena.shacl.ValidationReport
-import org.glassfish.json.JsonUtil
 import utils.Utils
 
 //  xml shacl validation -> https://www.w3.org/ns/shacl.rdf

@@ -1,15 +1,17 @@
 package wot.search.sparql
 
-import com.fasterxml.jackson.databind.node.ObjectNode
 import com.jayway.jsonpath.JsonPath
 import exceptions.UnsupportedSparqlQueryException
-import org.apache.jena.query.*
+import org.apache.jena.query.Dataset
+import org.apache.jena.query.TxnType
+import org.apache.jena.query.QueryExecutionFactory
+import org.apache.jena.query.QueryFactory
+import org.apache.jena.query.Syntax
+import org.apache.jena.query.ResultSetFormatter
 import org.apache.jena.riot.Lang
 import org.apache.jena.sparql.resultset.ResultsFormat
 import org.apache.jena.update.UpdateExecutionFactory
 import org.apache.jena.update.UpdateFactory
-import utils.RDFConverter
-import utils.Utils
 import java.io.ByteArrayOutputStream
 
 /**

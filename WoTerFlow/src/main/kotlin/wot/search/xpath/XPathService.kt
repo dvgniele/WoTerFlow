@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.dataformat.xml.XmlMapper
-import com.jayway.jsonpath.InvalidPathException
-import com.jayway.jsonpath.JsonPath
 import java.io.StringReader
 import net.sf.saxon.s9api.Processor
 import net.sf.saxon.s9api.XdmNode

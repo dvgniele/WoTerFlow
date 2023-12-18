@@ -2,10 +2,15 @@ package wot.search.sparql
 
 import exceptions.MissingQueryParameterException
 import exceptions.UnsupportedSparqlQueryException
-import io.ktor.http.*
-import io.ktor.server.application.*
-import io.ktor.server.request.*
-import io.ktor.server.response.*
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.header
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.receiveText
+import io.ktor.server.response.header
+import io.ktor.server.response.respond
 import org.apache.jena.query.Dataset
 import org.apache.jena.query.QueryFactory
 import org.apache.jena.query.Syntax

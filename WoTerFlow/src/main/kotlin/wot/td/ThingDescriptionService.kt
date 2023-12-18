@@ -5,16 +5,17 @@ import errors.ValidationError
 import exceptions.ConversionException
 import exceptions.ThingException
 import exceptions.ValidationException
-import io.ktor.server.plugins.*
-import org.apache.jena.query.*
-import org.apache.jena.rdf.model.*
+import io.ktor.server.plugins.BadRequestException
+import org.apache.jena.query.Dataset
+import org.apache.jena.query.TxnType
+import org.apache.jena.rdf.model.Model
 import org.apache.jena.riot.Lang
 import utils.RDFConverter
 import utils.Utils
 import wot.directory.DirectoryConfig
 import wot.search.sparql.SparqlService
 import java.time.Instant
-import java.util.*
+import java.util.UUID
 
 /**
  * Service responsible for managing [Thing Descriptions](https://www.w3.org/TR/wot-thing-description/#introduction-td) (TDs) within the system.
