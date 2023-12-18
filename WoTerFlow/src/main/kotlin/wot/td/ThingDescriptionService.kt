@@ -1,7 +1,6 @@
 package wot.td
 
 import com.fasterxml.jackson.databind.node.ObjectNode
-import com.github.jsonldjava.core.RDFDataset
 import errors.ValidationError
 import exceptions.ConversionException
 import exceptions.ThingException
@@ -120,12 +119,12 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     //  Query preparation for RDF data storing
                     val rdfTriplesString = converter.toString(jsonRdfModel)
                     val query = """
-                INSERT DATA {
-                    GRAPH <$graphId> {
-                        $rdfTriplesString
-                    }
-                }
-            """.trimIndent()
+                        INSERT DATA {
+                            GRAPH <$graphId> {
+                                $rdfTriplesString
+                            }
+                        }
+                    """.trimIndent()
 
                     // Execute query
                     SparqlService.update(query, rdfDataset)
@@ -178,17 +177,17 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     // Query preparation for RDF data storing
                     val rdfTriplesString = converter.toString(jsonRdfModel)
                     val query = """
-                    DELETE WHERE {
-                        GRAPH <$graphId> {
-                            ?s ?p ?o
+                        DELETE WHERE {
+                            GRAPH <$graphId> {
+                                ?s ?p ?o
+                            }
+                        };
+                        INSERT DATA {
+                            GRAPH <$graphId> {
+                                $rdfTriplesString
+                            }
                         }
-                    };
-                    INSERT DATA {
-                        GRAPH <$graphId> {
-                            $rdfTriplesString
-                        }
-                    }
-                """.trimIndent()
+                    """.trimIndent()
 
                     // Execute query
                     SparqlService.update(query, rdfDataset)
@@ -221,28 +220,30 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                     val thing = retrieveThingById(id)
                         ?: throw ThingException("Thing with id: $graphId does not exist.")
 
-                    thing.setAll<ObjectNode>(td)
-                    removeEmptyProperties(thing)
-                    decorateThingDescription(thing)
+                    val thingCopy = thing.deepCopy().setAll<ObjectNode>(td)
+                    removeEmptyProperties(thingCopy)
+                    decorateThingDescription(thingCopy)
 
                     //  Model Validation
-                    val jsonRdfModel = converter.toRdf(thing.toString())
+                    val jsonRdfModel = converter.toRdf(thingCopy.toString())
                     validateThingDescription(jsonRdfModel)
+
+                    thing.setAll<ObjectNode>(td)
 
                     // Query preparation for RDF data storing
                     val rdfTriplesString = converter.toString(jsonRdfModel)
                     val query = """
-                DELETE WHERE {
-                    GRAPH <$graphId> {
-                        ?s ?p ?o
-                    }
-                };
-                INSERT DATA {
-                    GRAPH <$graphId> {
-                        $rdfTriplesString
-                    }
-                }
-            """.trimIndent()
+                        DELETE WHERE {
+                            GRAPH <$graphId> {
+                                ?s ?p ?o
+                            }
+                        };
+                        INSERT DATA {
+                            GRAPH <$graphId> {
+                                $rdfTriplesString
+                            }
+                        }
+                    """.trimIndent()
 
                     // Execute query
                     SparqlService.update(query, rdfDataset)
