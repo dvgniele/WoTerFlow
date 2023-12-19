@@ -39,8 +39,7 @@ dependencies {
     //implementation("org.apache.jena:jena-fuseki-main:$jena_version")
 
 
-
-
+    //  JSONLD    
     // https://mvnrepository.com/artifact/com.apicatalog/titanium-json-ld
     implementation("com.apicatalog:titanium-json-ld:1.3.2")
 
@@ -49,9 +48,7 @@ dependencies {
     implementation("io.ktor:ktor-server-core:$ktor_version")
 
     // https://mvnrepository.com/artifact/io.ktor/ktor-server-cio
-    implementation("io.ktor:ktor-server-netty:$ktor_version")
     implementation("io.ktor:ktor-server-cio:$ktor_version")
-
 
     // https://mvnrepository.com/artifact/io.ktor/ktor-server-call-logging
     implementation("io.ktor:ktor-server-call-logging:$ktor_version")
@@ -76,8 +73,10 @@ dependencies {
     implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-xml:2.15.3")
 
 
+
     // https://mvnrepository.com/artifact/ch.qos.logback/logback-classic
     implementation("ch.qos.logback:logback-classic:1.4.11")
+
 
     //  TESTING
     testImplementation(kotlin("test"))
@@ -89,10 +88,8 @@ dependencies {
     // https://mvnrepository.com/artifact/io.rest-assured/json-path
     testImplementation("io.rest-assured:json-path:5.3.0")
 
-
     // https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp
     testImplementation("com.squareup.okhttp3:okhttp:4.11.0")
-
 
     // JUnit
     // https://mvnrepository.com/artifact/junit/junit
