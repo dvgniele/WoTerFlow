@@ -3,6 +3,7 @@ package wot.td
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import errors.ErrorDetails
+import errors.ValidationError
 import exceptions.ConversionException
 import exceptions.ThingException
 import exceptions.ValidationException
@@ -41,39 +42,44 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
      * @param call The [ApplicationCall] representing the HTTP request.
      */
     suspend fun retrieveAllThings(call: ApplicationCall) {
-        val request = call.request
+        runCatching {
+            val request = call.request
 
-        val responseFormat = request.queryParameters["format"]
-        val limit = request.queryParameters["limit"]?.toInt() ?: 20
-        val offset = request.queryParameters["offset"]?.toInt() ?: 0
-        val ordering = request.queryParameters["order"]
+            val responseFormat = request.queryParameters["format"]
+            val limit = request.queryParameters["limit"]?.toInt() ?: 20
+            val offset = request.queryParameters["offset"]?.toInt() ?: 0
+            val ordering = request.queryParameters["order"]
 
-        if (ordering != null && ordering != "null") {
-            throw NotImplemented("Ordering is not supported")
-        }
-
-        call.response.header(HttpHeaders.ContentType, "application/ld+json")
-
-        when (call.request.httpMethod) {
-            HttpMethod.Head -> {
-                call.respond(HttpStatusCode.OK)
+            if (ordering != null && ordering != "null") {
+                throw NotImplemented("Ordering is not supported")
             }
-            HttpMethod.Get -> {
-                call.response.status(HttpStatusCode.OK)
 
-                val things = ts.retrieveAllThings()
+            call.response.header(HttpHeaders.ContentType, "application/ld+json")
 
-                val responseBody = if (responseFormat == "collection") {
-                    val collectionResponse = generateCollectionResponse(call, things.size, offset, limit)
-                    collectionResponse.putArray("members").addAll(things.map { ObjectMapper().valueToTree(it) })
-                    collectionResponse
-                } else {
-                    generateListingResponse(call, things.size, offset, limit)
-                    things
+            when (call.request.httpMethod) {
+                HttpMethod.Head -> {
+                    call.respond(HttpStatusCode.OK)
                 }
 
-                call.respond(responseBody)
+                HttpMethod.Get -> {
+                    call.response.status(HttpStatusCode.OK)
+
+                    val things = ts.retrieveAllThings()
+
+                    val responseBody = if (responseFormat == "collection") {
+                        val collectionResponse = generateCollectionResponse(call, things.size, offset, limit)
+                        collectionResponse.putArray("members").addAll(things.map { ObjectMapper().valueToTree(it) })
+                        collectionResponse
+                    } else {
+                        generateListingResponse(call, things.size, offset, limit)
+                        things
+                    }
+
+                    call.respond(responseBody)
+                }
             }
+        }.onFailure { e ->
+            handleException(e, call)
         }
     }
 
@@ -137,7 +143,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
      * @param call The [ApplicationCall] representing the HTTP request.
      */
     suspend fun retrieveThingById(call: ApplicationCall) {
-        try {
+        runCatching {
             val id = Utils.hasValidId(call.parameters["id"])
             //val id = idValid.substringAfterLast("h")
 
@@ -156,12 +162,8 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                     call.respondText(json, ContentType.Application.Json, HttpStatusCode.OK)
                 }
             }
-        } catch (e: ThingException) {
-            call.respond(HttpStatusCode.BadRequest, e.message.toString())
-        } catch (e: NotFoundException) {
-            call.respond(HttpStatusCode.NotFound, "Requested Thing not found")
-        } catch (e: Exception) {
-            call.respond(HttpStatusCode.InternalServerError, "An error occurred: ${e.message}")
+        }.onFailure { e ->
+            handleException(e, call)
         }
     }
 
@@ -171,7 +173,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
      * @param call The [ApplicationCall] representing the HTTP request.
      */
     suspend fun registerAnonymousThing(call: ApplicationCall) {
-        try {
+        runCatching {
             val request = call.request
 
             if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
@@ -198,42 +200,8 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
 
                 eventController.notify(EventType.THING_CREATED, "{\n\"id\": \"${pair.first}\"\n}")
             }
-        } catch (e: ThingException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = e.statusCode.value,
-                detail = e.message ?: ""
-            )
-            call.respond(e.statusCode, errorDetails)
-        } catch (e: ValidationException) {
-            val errorDetails = ErrorDetails(
-                title = "Validation Exception",
-                status = HttpStatusCode.BadRequest.value,
-                detail = "The input did not pass the Schema validation",
-                validationErrors = e.errors
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: BadRequestException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: ConversionException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: Exception) {
-            val errorDetails = ErrorDetails(
-                title = "Internal Server Error",
-                status = HttpStatusCode.InternalServerError.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.InternalServerError, errorDetails)
+        }.onFailure { e ->
+            handleException(e, call)
         }
     }
 
@@ -243,7 +211,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
      * @param call The [ApplicationCall] representing the HTTP request.
      */
     suspend fun updateThing(call: ApplicationCall) {
-        try {
+        runCatching {
             val request = call.request
 
             if (!Utils.hasJsonContent(request.header(HttpHeaders.ContentType))) {
@@ -256,12 +224,15 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
             val thing = Utils.hasBody(call.receive())
 
             if (thing != null) {
+/*
                 val requestBodyId = thing.get("@id")?.takeIf { it.isTextual }?.asText()
                     ?: thing.get("id")?.takeIf { it.isTextual }?.asText()
+
 
                 if (requestBodyId != null) {
                     //throw ThingException("The thing must NOT have a 'id' or '@id' property")
                 }
+*/
 
                 val thingUpdate = ts.updateThing(thing)
                 val thingId = thingUpdate.first
@@ -278,49 +249,8 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                     eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingUpdate.first}\" }")
                 }
             }
-        } catch (e: ThingException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = e.statusCode.value,
-                detail = e.message ?: ""
-            )
-            call.respond(e.statusCode, errorDetails)
-        } catch (e: ValidationException) {
-            val errorDetails = ErrorDetails(
-                title = "Validation Exception",
-                status = HttpStatusCode.BadRequest.value,
-                detail = "The input did not pass the Schema validation",
-                validationErrors = e.errors
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: BadRequestException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: ConversionException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: NotFoundException) {
-            val errorDetails = ErrorDetails(
-                title = "Not Found",
-                status = HttpStatusCode.NotFound.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.NotFound, errorDetails)
-        } catch (e: Exception) {
-            val errorDetails = ErrorDetails(
-                title = "Internal Server Error",
-                status = HttpStatusCode.InternalServerError.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.InternalServerError, errorDetails)
+        }.onFailure { e ->
+            handleException(e, call)
         }
     }
 
@@ -330,7 +260,7 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
      * @param call The [ApplicationCall] representing the HTTP request.
      */
     suspend fun patchThing(call: ApplicationCall) {
-        try {
+        runCatching {
             val id = Utils.hasValidId(call.parameters["id"])
             val request = call.request
 
@@ -350,49 +280,8 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
                 call.respond(HttpStatusCode.NoContent)
                 eventController.notify(EventType.THING_UPDATED, "{ \n\"id\": \"${thingId}\" }")
             }
-        } catch (e: ThingException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = e.statusCode.value,
-                detail = e.message ?: ""
-            )
-            call.respond(e.statusCode, errorDetails)
-        } catch (e: ValidationException) {
-            val errorDetails = ErrorDetails(
-                title = "Validation Exception",
-                status = HttpStatusCode.BadRequest.value,
-                detail = "The input did not pass the Schema validation",
-                validationErrors = e.errors
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: BadRequestException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: ConversionException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = HttpStatusCode.BadRequest.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.BadRequest, errorDetails)
-        } catch (e: NotFoundException) {
-            val errorDetails = ErrorDetails(
-                title = "Not Found",
-                status = HttpStatusCode.NotFound.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.NotFound, errorDetails)
-        } catch (e: Exception) {
-            val errorDetails = ErrorDetails(
-                title = "Internal Server Error",
-                status = HttpStatusCode.InternalServerError.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.InternalServerError, errorDetails)
+        }.onFailure { e ->
+            handleException(e, call)
         }
     }
 
@@ -406,24 +295,58 @@ class ThingDescriptionController(service: ThingDescriptionService, private val e
         val id = call.parameters["id"] ?: throw ThingException("Missing thing ID")
         //val id = requestId.substringAfterLast("h")
 
-        try {
+        runCatching {
             ts.deleteThingById(id)
             call.respond(HttpStatusCode.NoContent)
             eventController.notify(EventType.THING_DELETED, "{ \n\"id\": \"${id}\" }")
-        } catch (e: ThingException) {
-            val errorDetails = ErrorDetails(
-                title = "Bad Request",
-                status = e.statusCode.value,
-                detail = e.message ?: ""
-            )
-            call.respond(e.statusCode, errorDetails)
-        } catch (e: Exception) {
-            val errorDetails = ErrorDetails(
-                title = "Internal Server Error",
-                status = HttpStatusCode.InternalServerError.value,
-                detail = e.message ?: ""
-            )
-            call.respond(HttpStatusCode.InternalServerError, errorDetails)
+        }.onFailure { e ->
+            handleException(e, call)
+        }
+    }
+
+    /**
+     * Extension function to [ApplicationCall] class. Responds to the client with an error status along with error details.
+     *
+     * @param status The HTTP status code for the error response.
+     * @param title The title of the error.
+     * @param detail The detailed description of the error.
+     */
+    private suspend fun ApplicationCall.respondError(status: HttpStatusCode, title: String, detail: String){
+        val errorDetails = ErrorDetails(
+            title = title,
+            status = status.value,
+            detail = detail
+        )
+        respond(status, errorDetails)
+    }
+
+    /**
+     * Extension function to [ApplicationCall] class. Responds to the client with a validation error status along with validation error details.
+     *
+     * @param errors The list of validation errors.
+     */
+    private suspend fun ApplicationCall.respondValidationError(errors: List<ValidationError>?){
+        val errorDetails = ErrorDetails(
+            title = "Validation Exception",
+            status = HttpStatusCode.BadRequest.value,
+            detail = "The input did not pass the Schema Validation",
+            validationErrors = errors
+        )
+        respond(HttpStatusCode.BadRequest, errorDetails)
+    }
+
+    /**
+     * Handles exceptions by responding with an appropriate error status and details.
+     *
+     * @param e The thrown exception.
+     * @param call The current application call context.
+     */
+    private suspend inline fun handleException(e: Throwable, call: ApplicationCall) {
+        when (e) {
+            is ThingException, is BadRequestException, is ConversionException -> call.respondError(HttpStatusCode.BadRequest, "Bad Request", e.message ?: "")
+            is ValidationException -> call.respondValidationError(e.errors)
+            is NotFoundException -> call.respondError(HttpStatusCode.NotFound, "Not Found", e.message ?: "")
+            else -> call.respondError(HttpStatusCode.InternalServerError, "Internal Server Error", e.message ?: "")
         }
     }
 }
