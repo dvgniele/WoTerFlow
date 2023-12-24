@@ -75,7 +75,7 @@ class ThingDescriptionService(dbRdf: Dataset, private val thingsMap: MutableMap<
                 }
             }
 
-            println("\t###\tREADY\t###")
+            Utils.printWatermark()
         } catch (e: Exception) {
             throw ThingException("Error refreshing the JsonDb: ${e.message}")
         } finally {

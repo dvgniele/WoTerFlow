@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.dvgniele"
-version = "1.0-SNAPSHOT"
+version = "0.1.8"
 
 val ktor_version = "2.3.5"
 val jena_version = "4.8.0"
@@ -114,7 +114,7 @@ tasks {
     }
 
     shadowJar {
-        archiveFileName.set("woterflow.jar")
+        archiveFileName.set("woterflow-${project.version}.jar")
 
         from("src/main/resources"){
             include("**/*.*")

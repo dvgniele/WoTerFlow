@@ -33,6 +33,24 @@ class Utils {
         val jsonMapper: ObjectMapper = jacksonObjectMapper()
 
         /**
+         * Prints the project watermark.
+         */
+        fun printWatermark(){
+                    println("""
+>>
+║║     _    _       _____           ______  _                  
+║║    | |  | |     |_   _|          |  ___|| |                 
+║║    | |  | |  ___  | |  ___  _ __ | |_   | |  ___ __      __ 
+║║    | |/\| | /   \ | | / _ \| '__||  _|  | | /   \\ \ /\ / / 
+║║    \  /\  /|  0  || ||  __/| |   | |    | ||  0  |\ V  V /  
+║║     \/  \/  \___/ \_/ \___||_|   \_|    |_| \___/  \_/\_/   
+║║                                                           v0.1.8
+>>                                    github.com/dvgniele/woterflow                       
+      
+            """.trimIndent())
+        }
+
+        /**
          * Downloads a file from [String] containing an [Url].
          *
          * @param uri The [Url] to download as [String].
