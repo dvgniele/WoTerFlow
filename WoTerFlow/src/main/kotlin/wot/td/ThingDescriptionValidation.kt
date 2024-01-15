@@ -59,7 +59,6 @@ class ThingDescriptionValidation {
         fun validateSyntactic(tdModel: Model, xmlModel: Model): List<String> {
             try {
                 val shapes = Shapes.parse(xmlModel)
-
                 val validationReport = ShaclValidator.get().validate(shapes, tdModel.graph)
 
                 if (!validationReport.conforms()) {
