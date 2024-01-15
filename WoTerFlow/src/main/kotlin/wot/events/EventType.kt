@@ -18,7 +18,7 @@ enum class EventType(val event: String) {
          * @return The corresponding [EventType] enum value, or null if not found.
          */
         fun fromString(event: String): EventType? {
-            return values().find { it.event == event }
+            return entries.find { it.event == event }
         }
     }
 }

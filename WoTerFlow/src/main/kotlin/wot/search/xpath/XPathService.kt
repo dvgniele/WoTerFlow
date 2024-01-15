@@ -14,7 +14,12 @@ import javax.xml.transform.stream.StreamSource
 
 class XPathService {
     companion object {
-        val processor = Processor(false)
+        private val processor = Processor(false)
+        private val compiler = processor.newXPathCompiler()
+
+        init {
+            compiler.languageVersion = "3.1"
+        }
 
         /**
          * Executes the XPath query.
@@ -59,8 +64,6 @@ class XPathService {
          * @return An [XdmValue] containing the result of the XPath query.
          */
         private fun evaluateXPath(query: String, tdDocument: XdmNode): XdmValue {
-            val compiler = processor.newXPathCompiler()
-            compiler.languageVersion = "3.1"
             val xpathSelector = compiler.compile(query).load()
             xpathSelector.contextItem = tdDocument
 
