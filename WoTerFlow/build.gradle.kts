@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "io.github.dvgniele"
-version = "0.1.8"
+version = "0.1.9"
 
 val ktor_version = "2.3.5"
 val jena_version = "4.8.0"
